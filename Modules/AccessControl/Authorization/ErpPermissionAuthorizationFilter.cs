@@ -102,6 +102,7 @@ public sealed class ErpPermissionAuthorizationFilter(IAuthorizationService autho
         if (path.StartsWith("parameters/e-documents")) return "e-documents.parameters";
         if (path.StartsWith("parameters/accounting")) return "accounting.parameters";
         if (path.StartsWith("general-settings")) return "settings.general-settings";
+        if (path.StartsWith("user")) return "users.user-management";
         return null;
     }
 }

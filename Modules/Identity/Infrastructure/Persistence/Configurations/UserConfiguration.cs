@@ -18,6 +18,7 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         entity.HasIndex(x => x.Username).IsUnique();
         entity.HasIndex(x => x.Email).IsUnique();
         entity.HasOne(x => x.Branch).WithMany(x => x.Users).HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(x => x.ManagerUser).WithMany(x => x.DirectReports).HasForeignKey(x => x.ManagerUserId).OnDelete(DeleteBehavior.Restrict);
         entity.HasQueryFilter(x => !x.IsDeleted);
     }
 }

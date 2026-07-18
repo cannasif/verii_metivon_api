@@ -109,11 +109,29 @@ var app = builder.Build();
 app.UseMiddleware<IisSafeHttpMethodMiddleware>();
 app.UseRouting();
 app.UseCors();
+app.UseExceptionHandler(handler => handler.Run(async context =>
+{
+    if (context.Response.HasStarted) return;
+    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+    context.Response.ContentType = "application/json";
+    await context.Response.WriteAsJsonAsync(ApiResponse<object>.Error(
+        "An unexpected server error occurred.",
+        StatusCodes.Status500InternalServerError,
+        context.TraceIdentifier));
+}));
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.MapControllers();
+
+app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy", service = "verii-metivon-api", utc = DateTime.UtcNow }))
+    .AllowAnonymous();
+app.MapGet("/health/ready", async (MetivonDbContext db, CancellationToken ct) =>
+    await db.Database.CanConnectAsync(ct)
+        ? Results.Ok(new { status = "Ready", database = "Connected", utc = DateTime.UtcNow })
+        : Results.Json(new { status = "NotReady", database = "Disconnected", utc = DateTime.UtcNow }, statusCode: 503))
+    .AllowAnonymous();
 
 app.MapGet("/api/branches", async (IUnitOfWork unitOfWork) =>
     ApiResponse<IReadOnlyList<BranchItem>>.Ok(await unitOfWork.Branches.Query().Where(x => x.IsActive)

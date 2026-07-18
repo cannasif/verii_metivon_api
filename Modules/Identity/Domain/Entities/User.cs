@@ -10,6 +10,9 @@ public sealed class User : Entity
     public string Role { get; set; } = "Admin";
     public long BranchId { get; set; }
     public Branch Branch { get; set; } = null!;
+    public long? ManagerUserId { get; set; }
+    public User? ManagerUser { get; set; }
+    public ICollection<User> DirectReports { get; set; } = [];
     public bool IsActive { get; set; } = true;
     public DateTime? LastLoginAt { get; set; }
     public string? RefreshToken { get; set; }

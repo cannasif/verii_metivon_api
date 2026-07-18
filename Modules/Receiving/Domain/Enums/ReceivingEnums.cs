@@ -1,0 +1,1 @@
+namespace verii_metivon_api.Modules.Receiving.Domain.Enums;public enum GoodsReceiptType{PurchaseOrder=1,FreeReceipt=2,CustomerReturn=3,TransferReceipt=4}public enum GoodsReceiptStatus{Draft=0,Registered=1,QualityInspection=2,Posted=3,Cancelled=4,Reversed=5}

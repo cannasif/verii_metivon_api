@@ -1,0 +1,1 @@
+using verii_metivon_api.Modules.Inventory.Application.Services;namespace verii_metivon_api.Modules.Inventory;public static class InventoryModule{public static IServiceCollection AddInventoryModule(this IServiceCollection s){s.AddScoped<IInventoryService,InventoryService>();return s;}}

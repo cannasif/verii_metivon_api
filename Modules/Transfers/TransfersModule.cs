@@ -1,0 +1,2 @@
+using verii_metivon_api.Modules.Transfers.Application.Parameters;using verii_metivon_api.Modules.Transfers.Application.Services;
+namespace verii_metivon_api.Modules.Transfers;public static class TransfersModule{public static IServiceCollection AddTransfersModule(this IServiceCollection s){s.AddScoped<ITransferParameterService,TransferParameterService>();s.AddScoped<ITransferOrderService,TransferOrderService>();return s;}}

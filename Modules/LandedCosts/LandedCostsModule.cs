@@ -1,0 +1,1 @@
+using verii_metivon_api.Modules.LandedCosts.Application.Services;namespace verii_metivon_api.Modules.LandedCosts;public static class LandedCostsModule{public static IServiceCollection AddLandedCostsModule(this IServiceCollection s){s.AddScoped<ILandedCostService,LandedCostService>();return s;}}

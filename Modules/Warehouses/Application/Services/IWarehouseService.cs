@@ -1,0 +1,9 @@
+using verii_metivon_api.Core.Auth; using verii_metivon_api.Core.Domain; using verii_metivon_api.Core.Paging;
+namespace verii_metivon_api.Modules.Warehouses.Application.Services;
+public sealed class WarehouseListQuery:PagedQuery{public long? BranchId{get;init;}public bool? IsActive{get;init;}}
+public sealed class LocationListQuery:PagedQuery{public long? WarehouseId{get;init;}public long? ZoneId{get;init;}public bool? IsActive{get;init;}}
+public sealed record WarehouseRow(long Id,string Code,string Name,long BranchId,string BranchName,string TypeName,bool IsWmsEnabled,bool AllowNegativeStock,bool IsDefault,bool IsActive);
+public sealed record LocationRow(long Id,string Code,string? Barcode,long WarehouseId,string WarehouseName,string? ZoneName,string LocationTypeName,string? Coordinate,bool IsBlocked,bool IsActive);
+public sealed record SaveWarehouseRequest(string Code,string Name,long BranchId,long WarehouseTypeId,string? Address,string? City,string? CountryCode,bool? AllowNegativeStock,bool IsWmsEnabled,bool IsDefault,bool IsActive);
+public sealed record SaveLocationRequest(long WarehouseId,long? WarehouseZoneId,long LocationTypeId,string Code,string? Barcode,string? Aisle,string? Bay,string? Level,string? Position,decimal? MaximumWeight,decimal? MaximumVolume,decimal? MaximumQuantity,bool IsReceiving,bool IsShipping,bool IsQuarantine,bool IsBlocked,bool IsActive);
+public interface IWarehouseService{Task<ApiResponse<PagedResult<WarehouseRow>>>GetWarehousesAsync(WarehouseListQuery q,CancellationToken ct);Task<ApiResponse<PagedResult<LocationRow>>>GetLocationsAsync(LocationListQuery q,CancellationToken ct);Task<ApiResponse<object>>CreateWarehouseAsync(SaveWarehouseRequest r,CancellationToken ct);Task<ApiResponse<object>>CreateLocationAsync(SaveLocationRequest r,CancellationToken ct);}

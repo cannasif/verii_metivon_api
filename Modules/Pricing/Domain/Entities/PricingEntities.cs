@@ -1,0 +1,11 @@
+using verii_metivon_api.Core.Domain;using verii_metivon_api.Modules.Products.Domain.Entities;
+namespace verii_metivon_api.Modules.Pricing.Domain.Entities;
+public sealed class PriceList:DefinitionEntity{public long CurrencyId{get;set;}public Currency Currency{get;set;}=null!;public DateOnly ValidFrom{get;set;}public DateOnly? ValidTo{get;set;}public bool PricesIncludeTax{get;set;}public int Priority{get;set;}public ICollection<PriceListLine>Lines{get;set;}=new List<PriceListLine>();}
+public sealed class PriceListLine:Entity{public long PriceListId{get;set;}public PriceList PriceList{get;set;}=null!;public long ProductId{get;set;}public Product Product{get;set;}=null!;public long UnitId{get;set;}public Unit Unit{get;set;}=null!;public long? CustomerGroupId{get;set;}public CustomerGroup? CustomerGroup{get;set;}public decimal MinimumQuantity{get;set;}public decimal UnitPrice{get;set;}public DateOnly? ValidFrom{get;set;}public DateOnly? ValidTo{get;set;}public bool IsActive{get;set;}=true;}
+public sealed class DiscountRule:DefinitionEntity{public int Scope{get;set;}public long? BusinessPartnerId{get;set;}public long? CustomerGroupId{get;set;}public long? ProductId{get;set;}public long? ProductGroupId{get;set;}public decimal MinimumQuantity{get;set;}public decimal? DiscountRate{get;set;}public decimal? DiscountAmount{get;set;}public DateOnly ValidFrom{get;set;}public DateOnly? ValidTo{get;set;}public int Priority{get;set;}public bool IsExclusive{get;set;}public decimal? MaximumDiscountAmount{get;set;}}
+public sealed class PricingParameterSettings:Entity
+{
+ public long?BranchId{get;set;}public Branch?Branch{get;set;}public int PriceRoundingDecimals{get;set;}=2;public int DiscountRoundingDecimals{get;set;}=2;public int RoundingMethod{get;set;}=1;
+ public bool PreferCustomerGroupPrice{get;set;}=true;public bool PreferHigherMinimumQuantity{get;set;}=true;public bool PreferHigherPriceListPriority{get;set;}=true;public bool FallbackToDefaultPriceList{get;set;}=true;public bool AllowPriceListOverlap{get;set;}
+ public bool AllowZeroPrice{get;set;}public bool AllowMultipleDiscounts{get;set;}public bool AllowFixedAmountDiscount{get;set;}=true;public bool StopAtExclusiveDiscount{get;set;}=true;public int MaximumDiscountRulesApplied{get;set;}=5;public decimal MaximumTotalDiscountPercent{get;set;}=100;public byte[]RowVersion{get;set;}=[];
+}

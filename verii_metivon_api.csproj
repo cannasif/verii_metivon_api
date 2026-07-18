@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>verii_metivon_api</RootNamespace>
+    <AssemblyName>verii_metivon_api</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="Core/**/*.cs" />
+    <Compile Include="Modules/Products/**/*.cs" />
+    <Compile Include="Modules/Warehouses/**/*.cs" />
+    <Compile Include="Modules/Inventory/**/*.cs" />
+    <Compile Include="Modules/Procurement/**/*.cs" />
+    <Compile Include="Modules/Receiving/**/*.cs" />
+    <Compile Include="Modules/Transfers/**/*.cs" />
+    <Compile Include="Modules/Pricing/**/*.cs" />
+    <Compile Include="Modules/Sales/**/*.cs" />
+    <Compile Include="Modules/Shipping/**/*.cs" />
+    <Compile Include="Modules/Counting/**/*.cs" />
+    <Compile Include="Modules/EDocuments/**/*.cs" />
+    <Compile Include="Modules/Accounting/**/*.cs" />
+    <Compile Include="Modules/LandedCosts/**/*.cs" />
+    <Compile Include="Modules/Parameters/**/*.cs" />
+    <Compile Include="Modules/Traceability/**/*.cs" />
+    <Compile Include="Modules/GeneralSettings/**/*.cs" />
+    <Compile Include="Modules/ExchangeRates/**/*.cs" />
+    <Compile Include="Modules/NumberSeries/**/*.cs" />
+    <Compile Include="Modules/TradeOperations/**/*.cs" />
+    <Compile Include="Modules/AccessControl/**/*.cs" />
+    <Compile Include="Modules/Identity/**/*.cs" />
+    <Compile Include="Modules/Organization/Domain/Entities/Branch.cs" />
+    <Compile Include="Modules/Organization/Infrastructure/Persistence/Configurations/BranchConfiguration.cs" />
+    <Compile Include="Modules/BusinessPartners/**/*.cs" />
+    <Compile Include="Migrations/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.11"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.2.1" />
+  </ItemGroup>
+</Project>

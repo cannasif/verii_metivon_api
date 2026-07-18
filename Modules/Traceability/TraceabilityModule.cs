@@ -1,0 +1,3 @@
+using verii_metivon_api.Modules.Traceability.Application.Parameters;
+namespace verii_metivon_api.Modules.Traceability;
+public static class TraceabilityModule{public static IServiceCollection AddTraceabilityModule(this IServiceCollection services){services.AddScoped<IInventoryTraceabilityParameterService,InventoryTraceabilityParameterService>();return services;}}

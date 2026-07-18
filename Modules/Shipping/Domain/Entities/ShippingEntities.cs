@@ -1,0 +1,15 @@
+using verii_metivon_api.Core.Domain;using verii_metivon_api.Modules.Sales.Domain.Entities;using verii_metivon_api.Modules.Warehouses.Domain.Entities;
+namespace verii_metivon_api.Modules.Shipping.Domain.Entities;
+public enum ShipmentStatus{Draft=0,Picking=1,Packed=2,Shipped=3,Delivered=4,Cancelled=5,Reversed=6}public enum DeliveryNoteStatus{Draft=0,ReadyForElectronicSubmission=1,Submitted=2,Accepted=3,Rejected=4,Cancelled=5}
+public sealed class Shipment:Entity{public string ShipmentNumber{get;set;}=string.Empty;public ShipmentStatus Status{get;set;}public long SalesOrderId{get;set;}public SalesOrder SalesOrder{get;set;}=null!;public long?TradeDossierId{get;set;}public long WarehouseId{get;set;}public Warehouse Warehouse{get;set;}=null!;public DateOnly ShipmentDate{get;set;}public string?CarrierName{get;set;}public string?VehiclePlate{get;set;}public string?DriverName{get;set;}public string?TrackingNumber{get;set;}public DateTime?ShippedAt{get;set;}public Guid?InventoryPostingId{get;set;}public ICollection<ShipmentLine>Lines{get;set;}=new List<ShipmentLine>();public DeliveryNote?DeliveryNote{get;set;}}
+public sealed class ShipmentLine:Entity{public long ShipmentId{get;set;}public Shipment Shipment{get;set;}=null!;public int LineNumber{get;set;}public long SalesOrderLineId{get;set;}public SalesOrderLine SalesOrderLine{get;set;}=null!;public long ProductId{get;set;}public long UnitId{get;set;}public long StorageLocationId{get;set;}public long InventoryStatusId{get;set;}public long?InventoryLotId{get;set;}public long?InventorySerialId{get;set;}public decimal Quantity{get;set;}}
+public sealed class DeliveryNote:Entity{public string DeliveryNoteNumber{get;set;}=string.Empty;public DeliveryNoteStatus Status{get;set;}public long ShipmentId{get;set;}public Shipment Shipment{get;set;}=null!;public DateTime IssueDate{get;set;}public string Scenario{get;set;}="TEMELIRSALIYE";public string?GibUuid{get;set;}public string?EnvelopeId{get;set;}public string?ResponseCode{get;set;}public string?ResponseDescription{get;set;}}
+public sealed class ShippingParameterSettings:Entity
+{
+ public long?BranchId{get;set;}public Branch?Branch{get;set;}public long?WarehouseId{get;set;}public Warehouse?Warehouse{get;set;}
+ public bool AllowPartialShipment{get;set;}=true;public bool RequireFullReservation{get;set;}=true;public bool RequirePackedBeforeShipment{get;set;}public bool AutoMarkPackedOnCreate{get;set;}
+ public bool AllowPastShipmentDate{get;set;}public bool RequireCarrierName{get;set;}public bool RequireVehiclePlate{get;set;}public bool RequireDriverName{get;set;}public bool RequireTrackingNumber{get;set;}
+ public int MaximumLinesPerShipment{get;set;}=100;public bool RequireLotForLotTracked{get;set;}=true;public bool RequireSerialForSerialTracked{get;set;}=true;
+ public bool AutoCreateDeliveryNote{get;set;}=true;public string DeliveryNoteScenario{get;set;}="TEMELIRSALIYE";public DeliveryNoteStatus DefaultDeliveryNoteStatus{get;set;}=DeliveryNoteStatus.ReadyForElectronicSubmission;
+ public string InventoryCurrencyCode{get;set;}="TRY";public byte[]RowVersion{get;set;}=[];
+}

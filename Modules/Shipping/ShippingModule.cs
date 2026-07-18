@@ -1,0 +1,2 @@
+using verii_metivon_api.Modules.Shipping.Application.Parameters;using verii_metivon_api.Modules.Shipping.Application.Services;
+namespace verii_metivon_api.Modules.Shipping;public static class ShippingModule{public static IServiceCollection AddShippingModule(this IServiceCollection s){s.AddScoped<IShippingParameterService,ShippingParameterService>();s.AddScoped<IShipmentService,ShipmentService>();return s;}}

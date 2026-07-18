@@ -1,0 +1,41 @@
+{
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "AzureAd__ClientSecret": "YOUR_SECRET",
+        "PowerBi__MockMode": "true"
+      },
+      "dotnetRunMessages": true,
+      "applicationUrl": "http://localhost:5001"
+    },
+    "https": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "AzureAd__ClientSecret": "YOUR_SECRET",
+        "PowerBi__MockMode": "true"
+      },
+      "dotnetRunMessages": true,
+      "applicationUrl": "https://localhost:7182;http://localhost:5218"
+    },
+    "IIS Express": {
+      "commandName": "IISExpress",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "AzureAd__ClientSecret": "YOUR_SECRET",
+        "PowerBi__MockMode": "true"
+      }
+    }
+  },
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "iisSettings": {
+    "windowsAuthentication": false,
+    "anonymousAuthentication": true,
+    "iisExpress": {
+      "applicationUrl": "http://localhost:5001/"
+    }
+  }
+}

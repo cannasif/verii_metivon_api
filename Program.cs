@@ -34,6 +34,21 @@ using System.Security.Claims;
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("DefaultConnection is not configured.");
+var configuredCorsOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>()
+    ?.Select(origin => origin.Trim().TrimEnd('/'))
+    .Where(origin =>
+        Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
+        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray()
+    ?? Array.Empty<string>();
+
+if (configuredCorsOrigins.Length == 0)
+{
+    throw new InvalidOperationException("Cors:AllowedOrigins must contain at least one valid HTTP(S) origin.");
+}
 
 builder.Services.AddDbContext<MetivonDbContext>(options => options.UseSqlServer(connectionString));
 builder.Services.AddHttpContextAccessor();
@@ -69,7 +84,7 @@ builder.Services.AddAccessControlModule();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
-    .WithOrigins("http://localhost:5173", "http://127.0.0.1:5173")
+    .WithOrigins(configuredCorsOrigins)
     .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
 var jwtKey = builder.Configuration["JwtSettings:SecretKey"]

@@ -15,11 +15,15 @@ public sealed class ExchangeRatesController(IExchangeRateService service) : Cont
     [HttpGet("latest")]
     [ProducesResponseType(typeof(ApiResponse<ExchangeRateSnapshotDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status503ServiceUnavailable)]
-    public async Task<IActionResult> GetLatest(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetLatest(
+        [FromQuery] bool forceRefresh = false,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            return Ok(ApiResponse<ExchangeRateSnapshotDto>.Ok(await service.GetLatestAsync(cancellationToken)));
+            Response.Headers.CacheControl = "no-store";
+            return Ok(ApiResponse<ExchangeRateSnapshotDto>.Ok(
+                await service.GetLatestAsync(forceRefresh, cancellationToken)));
         }
         catch (ExchangeRateUnavailableException)
         {

@@ -17,15 +17,21 @@ public sealed class TcmbExchangeRateService(
     private static readonly SemaphoreSlim RefreshLock = new(1, 1);
     private static readonly string[] HourlyPublicationTimes = ["1100", "1200", "1400", "1500", "1000", "1300"];
 
-    public async Task<ExchangeRateSnapshotDto> GetLatestAsync(CancellationToken cancellationToken = default)
+    public async Task<ExchangeRateSnapshotDto> GetLatestAsync(
+        bool forceRefresh = false,
+        CancellationToken cancellationToken = default)
     {
-        if (cache.TryGetValue(FreshCacheKey, out ExchangeRateSnapshotDto? fresh) && fresh is not null)
+        if (!forceRefresh &&
+            cache.TryGetValue(FreshCacheKey, out ExchangeRateSnapshotDto? fresh) &&
+            fresh is not null)
             return fresh;
 
         await RefreshLock.WaitAsync(cancellationToken);
         try
         {
-            if (cache.TryGetValue(FreshCacheKey, out fresh) && fresh is not null)
+            if (!forceRefresh &&
+                cache.TryGetValue(FreshCacheKey, out fresh) &&
+                fresh is not null)
                 return fresh;
 
             try

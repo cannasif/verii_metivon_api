@@ -17,6 +17,7 @@ public sealed class NumberSeriesQuery : PagedQuery
 }
 
 public sealed record NumberSeriesRow(long Id,string Code,string Name,string Module,string Reference,string ScopeType,long? BranchId,long? WarehouseId,string Format,string ResetPeriod,long StartingNumber,long MaximumNumber,bool IsGibCompliant,bool AllowManual,bool IsContinuous,int ReservationTimeoutMinutes,bool IsDefault,int Priority,bool IsActive);
+public sealed record NumberSeriesDetails(long Id,string Code,string Name,string Module,string Reference,NumberSeriesScopeType ScopeType,long? BranchId,long? WarehouseId,string Format,NumberSeriesResetPeriod ResetPeriod,long StartingNumber,int IncrementBy,long MaximumNumber,bool IsGibCompliant,bool AllowManual,bool IsContinuous,int ReservationTimeoutMinutes,bool IsDefault,int Priority,DateOnly? ValidFrom,DateOnly? ValidTo,bool IsActive,IReadOnlyList<NumberSeriesAssignmentInput> Assignments);
 public sealed record NumberSeriesAssignmentInput(long? Id,long? BranchId,long? WarehouseId,long? UserId,long? BusinessPartnerId,string? Channel,string? Scenario,int Priority,bool IsDefault,bool IsActive);
 public sealed record SaveNumberSeriesRequest(string Code,string Name,string Module,string Reference,NumberSeriesScopeType ScopeType,long? BranchId,long? WarehouseId,string Format,NumberSeriesResetPeriod ResetPeriod,long StartingNumber,int IncrementBy,long MaximumNumber,bool IsGibCompliant,bool AllowManual,bool IsContinuous,int? ReservationTimeoutMinutes,bool IsDefault,int Priority,DateOnly? ValidFrom,DateOnly? ValidTo,bool IsActive,IReadOnlyList<NumberSeriesAssignmentInput>? Assignments);
 public sealed record ReserveNumberRequest(string Module,string Reference,long? NumberSeriesId,long? BranchId,long? WarehouseId,long? UserId,long? BusinessPartnerId,string? Channel,string? Scenario,DateOnly DocumentDate,string DocumentType);
@@ -35,6 +36,7 @@ public sealed record NumberSeriesUsageRow(long Id,long NumberSeriesId,string Ser
 public interface INumberSeriesService
 {
     Task<ApiResponse<PagedResult<NumberSeriesRow>>> GetPagedAsync(NumberSeriesQuery query,CancellationToken ct);
+    Task<ApiResponse<NumberSeriesDetails>> GetByIdAsync(long id,CancellationToken ct);
     Task<ApiResponse<PagedResult<NumberSeriesUsageRow>>> GetUsagePagedAsync(NumberSeriesUsageQuery query,CancellationToken ct);
     Task<ApiResponse<object>> SaveAsync(long? id,SaveNumberSeriesRequest request,CancellationToken ct);
     Task<ApiResponse<object>> DeleteAsync(long id,CancellationToken ct);
@@ -64,6 +66,17 @@ public sealed class NumberSeriesService(MetivonDbContext db) : INumberSeriesServ
         var items=await query.ApplyPagedSort(q,nameof(DocumentNumberSeries.Code)).Skip((q.NormalizedPageNumber-1)*q.NormalizedPageSize).Take(q.NormalizedPageSize)
             .Select(x=>new NumberSeriesRow(x.Id,x.Code,x.Name,x.Module,x.Reference,x.ScopeType.ToString(),x.BranchId,x.WarehouseId,x.Format,x.ResetPeriod.ToString(),x.StartingNumber,x.MaximumNumber,x.IsGibCompliant,x.AllowManual,x.IsContinuous,x.ReservationTimeoutMinutes,x.IsDefault,x.Priority,x.IsActive)).ToListAsync(ct);
         return ApiResponse<PagedResult<NumberSeriesRow>>.Ok(new(items,q.NormalizedPageNumber,q.NormalizedPageSize,total));
+    }
+
+    public async Task<ApiResponse<NumberSeriesDetails>> GetByIdAsync(long id,CancellationToken ct)
+    {
+        var item=await db.DocumentNumberSeries.AsNoTracking().Where(x=>x.Id==id).Select(x=>new NumberSeriesDetails(
+            x.Id,x.Code,x.Name,x.Module,x.Reference,x.ScopeType,x.BranchId,x.WarehouseId,x.Format,x.ResetPeriod,
+            x.StartingNumber,x.IncrementBy,x.MaximumNumber,x.IsGibCompliant,x.AllowManual,x.IsContinuous,
+            x.ReservationTimeoutMinutes,x.IsDefault,x.Priority,x.ValidFrom,x.ValidTo,x.IsActive,
+            x.Assignments.OrderBy(a=>a.Priority).Select(a=>new NumberSeriesAssignmentInput(a.Id,a.BranchId,a.WarehouseId,a.UserId,a.BusinessPartnerId,a.Channel,a.Scenario,a.Priority,a.IsDefault,a.IsActive)).ToList()
+        )).FirstOrDefaultAsync(ct);
+        return item is null?ApiResponse<NumberSeriesDetails>.Error("Number series was not found.",404):ApiResponse<NumberSeriesDetails>.Ok(item);
     }
 
     public async Task<ApiResponse<PagedResult<NumberSeriesUsageRow>>> GetUsagePagedAsync(NumberSeriesUsageQuery q,CancellationToken ct)

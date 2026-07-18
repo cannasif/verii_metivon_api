@@ -31,8 +31,7 @@
     <Compile Include="Modules/TradeOperations/**/*.cs" />
     <Compile Include="Modules/AccessControl/**/*.cs" />
     <Compile Include="Modules/Identity/**/*.cs" />
-    <Compile Include="Modules/Organization/Domain/Entities/Branch.cs" />
-    <Compile Include="Modules/Organization/Infrastructure/Persistence/Configurations/BranchConfiguration.cs" />
+    <Compile Include="Modules/Organization/**/*.cs" />
     <Compile Include="Modules/BusinessPartners/**/*.cs" />
     <Compile Include="Migrations/**/*.cs" />
   </ItemGroup>

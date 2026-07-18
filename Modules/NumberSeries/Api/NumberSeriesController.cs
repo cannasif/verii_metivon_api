@@ -9,6 +9,7 @@ namespace verii_metivon_api.Modules.NumberSeries.Api;
 public sealed class NumberSeriesController(INumberSeriesService service) : ControllerBase
 {
     [HttpGet] public async Task<IActionResult> Get([FromQuery] NumberSeriesQuery query,CancellationToken ct){var result=await service.GetPagedAsync(query,ct);return StatusCode(result.StatusCode,result);}
+    [HttpGet("{id:long}")] public async Task<IActionResult> GetById(long id,CancellationToken ct){var result=await service.GetByIdAsync(id,ct);return StatusCode(result.StatusCode,result);}
     [HttpGet("usages")] public async Task<IActionResult> Usages([FromQuery] NumberSeriesUsageQuery query,CancellationToken ct){var result=await service.GetUsagePagedAsync(query,ct);return StatusCode(result.StatusCode,result);}
     [HttpPost] public async Task<IActionResult> Create(SaveNumberSeriesRequest request,CancellationToken ct){var result=await service.SaveAsync(null,request,ct);return StatusCode(result.StatusCode,result);}
     [HttpPost("{id:long}/update")] public async Task<IActionResult> Update(long id,SaveNumberSeriesRequest request,CancellationToken ct){var result=await service.SaveAsync(id,request,ct);return StatusCode(result.StatusCode,result);}

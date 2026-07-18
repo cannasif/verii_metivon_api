@@ -29,6 +29,7 @@ using verii_metivon_api.Modules.ExchangeRates;
 using verii_metivon_api.Modules.NumberSeries;
 using verii_metivon_api.Modules.AccessControl;
 using verii_metivon_api.Modules.AccessControl.Authorization;
+using verii_metivon_api.Modules.Organization;
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -81,6 +82,7 @@ builder.Services.AddExchangeRatesModule();
 builder.Services.AddNumberSeriesModule();
 builder.Services.AddTradeOperationsModule();
 builder.Services.AddAccessControlModule();
+builder.Services.AddOrganizationModule();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
@@ -132,11 +134,6 @@ app.MapGet("/health/ready", async (MetivonDbContext db, CancellationToken ct) =>
         ? Results.Ok(new { status = "Ready", database = "Connected", utc = DateTime.UtcNow })
         : Results.Json(new { status = "NotReady", database = "Disconnected", utc = DateTime.UtcNow }, statusCode: 503))
     .AllowAnonymous();
-
-app.MapGet("/api/branches", async (IUnitOfWork unitOfWork) =>
-    ApiResponse<IReadOnlyList<BranchItem>>.Ok(await unitOfWork.Branches.Query().Where(x => x.IsActive)
-        .OrderByDescending(x => x.IsDefault).ThenBy(x => x.Name)
-        .Select(x => new BranchItem(x.Id, x.Code, x.Name, x.IsDefault)).ToListAsync()));
 
 app.MapPost("/api/auth/login", async (LoginRequest request, IUnitOfWork unitOfWork, JwtTokenService tokens) =>
 {

@@ -73,7 +73,7 @@ public sealed class ErpPermissionAuthorizationFilter(IAuthorizationService autho
         if (path.StartsWith("business-partners")) return "accounts.account-management";
         if (path.StartsWith("products")) return "products.product-management";
         if (path.StartsWith("warehouses")) return path.Contains("locations") ? "warehouses.storage-locations" : "warehouses.warehouse-management";
-        if (path.StartsWith("inventory/balances")) return "inventory.balances";
+        if (path.StartsWith("inventory/balances") || path.StartsWith("inventory/dashboard")) return "inventory.balances";
         if (path.StartsWith("inventory")) return "inventory.transactions";
         if (path.StartsWith("purchase-orders")) return "procurement.purchase-orders";
         if (path.StartsWith("goods-receipts")) return "receiving.goods-receipts";

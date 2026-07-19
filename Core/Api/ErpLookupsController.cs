@@ -108,6 +108,16 @@ public sealed class ErpLookupsController(MetivonDbContext db) : ControllerBase
                 .Select(x => new LookupRow { Id = x.Id, Code = x.Code, Name = x.Name }),
             "landedcosttypes" => db.LandedCostTypes.Where(x => x.IsActive)
                 .Select(x => new LookupRow { Id = x.Id, Code = x.Code, Name = x.Name }),
+            "importdossiers" => db.ImportDossiers
+                .Where(x => x.Status != Modules.LandedCosts.Domain.Entities.ImportDossierStatus.Finalized
+                    && x.Status != Modules.LandedCosts.Domain.Entities.ImportDossierStatus.Closed
+                    && x.Status != Modules.LandedCosts.Domain.Entities.ImportDossierStatus.Cancelled)
+                .Select(x => new LookupRow
+                {
+                    Id = x.Id,
+                    Code = x.DossierNumber,
+                    Name = x.Supplier.Name + " · " + x.CurrencyCode
+                }),
             "tradedossiers" => db.TradeDossiers.Where(x => x.Status != Modules.TradeOperations.Domain.Entities.TradeDossierStatus.Closed && x.Status != Modules.TradeOperations.Domain.Entities.TradeDossierStatus.Cancelled)
                 .Select(x => new LookupRow { Id = x.Id, Code = x.DossierNumber, Name = x.BusinessPartner.Name + " · " + x.Direction }),
             _ => null
@@ -163,6 +173,14 @@ public sealed class ErpLookupsController(MetivonDbContext db) : ControllerBase
             fiscalPeriods = await db.FiscalPeriods.Where(x => x.IsOpen).OrderBy(x => x.StartDate).Select(x => new { x.Id, x.Code, x.Name }).ToListAsync(ct),
             ledgerAccounts = await db.LedgerAccounts.Where(x => x.IsActive && x.AllowPosting).OrderBy(x => x.Code).Select(x => new { x.Id, x.Code, x.Name }).ToListAsync(ct),
             landedCostTypes = await db.LandedCostTypes.Where(x => x.IsActive).OrderBy(x => x.DisplayOrder).Select(x => new { x.Id, x.Code, x.Name, AllocationMethod = x.DefaultAllocationMethod.ToString() }).ToListAsync(ct),
+            importDossiers = await db.ImportDossiers
+                .Where(x => x.Status != Modules.LandedCosts.Domain.Entities.ImportDossierStatus.Finalized
+                    && x.Status != Modules.LandedCosts.Domain.Entities.ImportDossierStatus.Closed
+                    && x.Status != Modules.LandedCosts.Domain.Entities.ImportDossierStatus.Cancelled)
+                .OrderByDescending(x => x.OpenDate)
+                .Take(300)
+                .Select(x => new { x.Id, Code = x.DossierNumber, Name = x.Supplier.Name + " · " + x.CurrencyCode })
+                .ToListAsync(ct),
             tradeDossiers = await db.TradeDossiers.Where(x => x.Status != Modules.TradeOperations.Domain.Entities.TradeDossierStatus.Closed && x.Status != Modules.TradeOperations.Domain.Entities.TradeDossierStatus.Cancelled).OrderByDescending(x => x.OpenDate).Take(300).Select(x => new { x.Id, Code=x.DossierNumber, Name=x.BusinessPartner.Name+" · "+x.Direction, x.Direction, x.BusinessPartnerId }).ToListAsync(ct)
         };
         return Ok(ApiResponse<object>.Ok(result));

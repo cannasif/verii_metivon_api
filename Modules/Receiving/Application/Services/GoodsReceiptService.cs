@@ -35,7 +35,9 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
         if(r.Lines.Count==0)return ApiResponse<object>.Error("At least one receipt line is required.",400);
         var settings=await parameters.ResolveSettingsAsync(r.BranchId,r.WarehouseId,ct);
         var purchaseOrderIds=r.PurchaseOrderIds.Where(x=>x>0).Distinct().ToArray();
-        if(r.ReceiptType==GoodsReceiptType.PurchaseOrder&&settings.RequirePurchaseOrder&&purchaseOrderIds.Length==0)return ApiResponse<object>.Error("At least one purchase order is required by receiving parameters.",400);
+        var receiptType=r.ReceiptType==GoodsReceiptType.PurchaseOrder&&purchaseOrderIds.Length==0
+            ? GoodsReceiptType.FreeReceipt
+            : r.ReceiptType;
         var purchaseOrders=purchaseOrderIds.Length==0
             ? []
             : await u.Repository<PurchaseOrder>().Query().Include(x=>x.Lines).Where(x=>purchaseOrderIds.Contains(x.Id)).ToListAsync(ct);
@@ -46,7 +48,6 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
         if(r.Lines.Any(x=>x.PurchaseOrderLineId.HasValue&&!selectedOrderLineIds.Contains(x.PurchaseOrderLineId.Value)))return ApiResponse<object>.Error("Every purchase order line must belong to one of the selected purchase orders.",409);
         TradeDossier? trade=null;long? forcedTradeStatusId=null;
         if(r.TradeDossierId.HasValue){trade=await u.Repository<TradeDossier>().GetByIdAsync(r.TradeDossierId.Value,ct);if(trade is null||trade.Direction!=TradeDirection.Import)return ApiResponse<object>.Error("A valid import dossier is required.",400);if(trade.Status is TradeDossierStatus.Closed or TradeDossierStatus.Cancelled)return ApiResponse<object>.Error("Closed or cancelled trade dossier cannot receive goods.",409);if(trade.BranchId!=r.BranchId||r.SupplierId.HasValue&&trade.BusinessPartnerId!=r.SupplierId.Value)return ApiResponse<object>.Error("Trade dossier branch and supplier must match the goods receipt.",409);if(purchaseOrders.Any(x=>x.TradeDossierId.HasValue&&x.TradeDossierId!=trade.Id))return ApiResponse<object>.Error("A selected purchase order is linked to another trade dossier.",409);var statusCode=trade.BondedWarehouseId.HasValue?"BONDED":"CUSTOMS_HOLD";forcedTradeStatusId=await u.Repository<InventoryStatus>().Query().Where(x=>x.Code==statusCode&&x.IsActive).Select(x=>(long?)x.Id).FirstOrDefaultAsync(ct);if(!forcedTradeStatusId.HasValue)return ApiResponse<object>.Error($"Required inventory status {statusCode} is missing.",409);}
-        if(r.ReceiptType==GoodsReceiptType.FreeReceipt&&!settings.AllowFreeReceipt)return ApiResponse<object>.Error("Free goods receipts are disabled by receiving parameters.",400);
         if(settings.RequireSupplierDeliveryNoteNumber&&string.IsNullOrWhiteSpace(r.SupplierDeliveryNoteNumber))return ApiResponse<object>.Error("Supplier delivery note number is required by receiving parameters.",400);
         var requestSerials=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach(var line in r.Lines)
@@ -80,7 +81,7 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
             }
         }
         catch(InvalidOperationException exception){return ApiResponse<object>.Error(exception.Message,400);}
-        var e=new GoodsReceipt{ReceiptNumber=number,ReceiptType=r.ReceiptType,Status=GoodsReceiptStatus.Draft,BranchId=r.BranchId,SupplierId=r.SupplierId,PurchaseOrderId=purchaseOrderIds.Length>0?purchaseOrderIds[0]:null,TradeDossierId=r.TradeDossierId,WarehouseId=r.WarehouseId,SupplierDeliveryNoteNumber=r.SupplierDeliveryNoteNumber?.Trim(),ReceiptDate=r.ReceiptDate,Notes=r.Notes};
+        var e=new GoodsReceipt{ReceiptNumber=number,ReceiptType=receiptType,Status=GoodsReceiptStatus.Draft,BranchId=r.BranchId,SupplierId=r.SupplierId,PurchaseOrderId=purchaseOrderIds.Length>0?purchaseOrderIds[0]:null,TradeDossierId=r.TradeDossierId,WarehouseId=r.WarehouseId,SupplierDeliveryNoteNumber=r.SupplierDeliveryNoteNumber?.Trim(),ReceiptDate=r.ReceiptDate,Notes=r.Notes};
         var n=0;foreach(var l in r.Lines)
         {
             if(l.ReceivedQuantity<=0||l.AcceptedQuantity<0||l.RejectedQuantity<0||l.AcceptedQuantity+l.RejectedQuantity!=l.ReceivedQuantity)return ApiResponse<object>.Error("Receipt quantities are inconsistent.",400);
@@ -155,5 +156,3 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
         return ApiResponse<object>.Ok(new{receipt.Id,receipt.InventoryPostingId,receipt.Status,LabelsReady=settings.AutoCreateLabels&&trace.AutoCreateLabelsAfterReceipt,LabelCopies=trace.DefaultLabelCopies});
     }
 }
-
-

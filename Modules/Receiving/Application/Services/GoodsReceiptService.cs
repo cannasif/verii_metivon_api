@@ -22,7 +22,7 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
     public async Task<ApiResponse<PagedResult<GoodsReceiptRow>>>GetPagedAsync(GoodsReceiptQuery q,CancellationToken ct)
     {
         var x=u.Repository<GoodsReceipt>().Query().Include(v=>v.Warehouse).Include(v=>v.PurchaseOrder).AsQueryable();
-        if(q.PurchaseOrderId.HasValue)x=x.Where(v=>v.PurchaseOrderId==q.PurchaseOrderId);if(q.SupplierId.HasValue)x=x.Where(v=>v.SupplierId==q.SupplierId);if(q.WarehouseId.HasValue)x=x.Where(v=>v.WarehouseId==q.WarehouseId);if(q.Status.HasValue)x=x.Where(v=>v.Status==q.Status);
+        if(q.PurchaseOrderId.HasValue)x=x.Where(v=>v.PurchaseOrderId==q.PurchaseOrderId||v.PurchaseOrders.Any(link=>link.PurchaseOrderId==q.PurchaseOrderId));if(q.SupplierId.HasValue)x=x.Where(v=>v.SupplierId==q.SupplierId);if(q.WarehouseId.HasValue)x=x.Where(v=>v.WarehouseId==q.WarehouseId);if(q.Status.HasValue)x=x.Where(v=>v.Status==q.Status);
         if(!string.IsNullOrWhiteSpace(q.Search)){var s=q.Search.Trim();x=x.Where(v=>v.ReceiptNumber.Contains(s)||(v.SupplierDeliveryNoteNumber!=null&&v.SupplierDeliveryNoteNumber.Contains(s)));}
         x=x.ApplyPagedFilters(q);
         var total=await x.CountAsync(ct);var suppliers=u.Repository<verii_metivon_api.Core.Domain.BusinessPartner>().Query();
@@ -34,9 +34,18 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
     {
         if(r.Lines.Count==0)return ApiResponse<object>.Error("At least one receipt line is required.",400);
         var settings=await parameters.ResolveSettingsAsync(r.BranchId,r.WarehouseId,ct);
+        var purchaseOrderIds=r.PurchaseOrderIds.Where(x=>x>0).Distinct().ToArray();
+        if(r.ReceiptType==GoodsReceiptType.PurchaseOrder&&settings.RequirePurchaseOrder&&purchaseOrderIds.Length==0)return ApiResponse<object>.Error("At least one purchase order is required by receiving parameters.",400);
+        var purchaseOrders=purchaseOrderIds.Length==0
+            ? []
+            : await u.Repository<PurchaseOrder>().Query().Include(x=>x.Lines).Where(x=>purchaseOrderIds.Contains(x.Id)).ToListAsync(ct);
+        if(purchaseOrders.Count!=purchaseOrderIds.Length)return ApiResponse<object>.Error("One or more selected purchase orders could not be found.",400);
+        if(purchaseOrders.Any(x=>x.BranchId!=r.BranchId||x.SupplierId!=r.SupplierId||x.WarehouseId!=r.WarehouseId))return ApiResponse<object>.Error("All selected purchase orders must belong to the selected branch, supplier and warehouse.",409);
+        if(purchaseOrders.Any(x=>x.Status is PurchaseOrderStatus.Cancelled or PurchaseOrderStatus.Received or PurchaseOrderStatus.Invoiced))return ApiResponse<object>.Error("Cancelled, fully received or invoiced purchase orders cannot be received.",409);
+        var selectedOrderLineIds=purchaseOrders.SelectMany(x=>x.Lines).Select(x=>x.Id).ToHashSet();
+        if(r.Lines.Any(x=>x.PurchaseOrderLineId.HasValue&&!selectedOrderLineIds.Contains(x.PurchaseOrderLineId.Value)))return ApiResponse<object>.Error("Every purchase order line must belong to one of the selected purchase orders.",409);
         TradeDossier? trade=null;long? forcedTradeStatusId=null;
-        if(r.TradeDossierId.HasValue){trade=await u.Repository<TradeDossier>().GetByIdAsync(r.TradeDossierId.Value,ct);if(trade is null||trade.Direction!=TradeDirection.Import)return ApiResponse<object>.Error("A valid import dossier is required.",400);if(trade.Status is TradeDossierStatus.Closed or TradeDossierStatus.Cancelled)return ApiResponse<object>.Error("Closed or cancelled trade dossier cannot receive goods.",409);var statusCode=trade.BondedWarehouseId.HasValue?"BONDED":"CUSTOMS_HOLD";forcedTradeStatusId=await u.Repository<InventoryStatus>().Query().Where(x=>x.Code==statusCode&&x.IsActive).Select(x=>(long?)x.Id).FirstOrDefaultAsync(ct);if(!forcedTradeStatusId.HasValue)return ApiResponse<object>.Error($"Required inventory status {statusCode} is missing.",409);}
-        if(r.ReceiptType==GoodsReceiptType.PurchaseOrder&&settings.RequirePurchaseOrder&&!r.PurchaseOrderId.HasValue)return ApiResponse<object>.Error("Purchase order is required by receiving parameters.",400);
+        if(r.TradeDossierId.HasValue){trade=await u.Repository<TradeDossier>().GetByIdAsync(r.TradeDossierId.Value,ct);if(trade is null||trade.Direction!=TradeDirection.Import)return ApiResponse<object>.Error("A valid import dossier is required.",400);if(trade.Status is TradeDossierStatus.Closed or TradeDossierStatus.Cancelled)return ApiResponse<object>.Error("Closed or cancelled trade dossier cannot receive goods.",409);if(trade.BranchId!=r.BranchId||r.SupplierId.HasValue&&trade.BusinessPartnerId!=r.SupplierId.Value)return ApiResponse<object>.Error("Trade dossier branch and supplier must match the goods receipt.",409);if(purchaseOrders.Any(x=>x.TradeDossierId.HasValue&&x.TradeDossierId!=trade.Id))return ApiResponse<object>.Error("A selected purchase order is linked to another trade dossier.",409);var statusCode=trade.BondedWarehouseId.HasValue?"BONDED":"CUSTOMS_HOLD";forcedTradeStatusId=await u.Repository<InventoryStatus>().Query().Where(x=>x.Code==statusCode&&x.IsActive).Select(x=>(long?)x.Id).FirstOrDefaultAsync(ct);if(!forcedTradeStatusId.HasValue)return ApiResponse<object>.Error($"Required inventory status {statusCode} is missing.",409);}
         if(r.ReceiptType==GoodsReceiptType.FreeReceipt&&!settings.AllowFreeReceipt)return ApiResponse<object>.Error("Free goods receipts are disabled by receiving parameters.",400);
         if(settings.RequireSupplierDeliveryNoteNumber&&string.IsNullOrWhiteSpace(r.SupplierDeliveryNoteNumber))return ApiResponse<object>.Error("Supplier delivery note number is required by receiving parameters.",400);
         var requestSerials=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -49,8 +58,9 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
             if(tracking!=InventoryTrackingType.Serial&&serials.Length>0)return ApiResponse<object>.Error("Serial numbers can only be entered for serial-tracked products.",400);
             foreach(var serial in serials){var key=$"{line.ProductId}:{serial}";if(!requestSerials.Add(key))return ApiResponse<object>.Error($"Duplicate serial number in receipt: {serial}",400);}
         }
-        ReservedNumber? reserved=null;var number=r.ReceiptNumber?.Trim();if(string.IsNullOrWhiteSpace(number)){reserved=await numberSeries.ReserveAsync(new("Receiving","GoodsReceiptNumber",r.NumberSeriesId,r.BranchId,r.WarehouseId,null,r.SupplierId,null,null,r.ReceiptDate,"GoodsReceipt"),ct);number=reserved.DocumentNumber;}else number=await parameters.ResolveNumberAsync(number,r.BranchId,ct);
-        var e=new GoodsReceipt{ReceiptNumber=number,ReceiptType=r.ReceiptType,Status=GoodsReceiptStatus.Draft,BranchId=r.BranchId,SupplierId=r.SupplierId,PurchaseOrderId=r.PurchaseOrderId,TradeDossierId=r.TradeDossierId,WarehouseId=r.WarehouseId,SupplierDeliveryNoteNumber=r.SupplierDeliveryNoteNumber?.Trim(),ReceiptDate=r.ReceiptDate,Notes=r.Notes};
+        ReservedNumber? reserved=null;string number;try{var requestedNumber=r.ReceiptNumber?.Trim();if(string.IsNullOrWhiteSpace(requestedNumber)){reserved=await numberSeries.ReserveAsync(new("Receiving","GoodsReceiptNumber",null,r.BranchId,r.WarehouseId,null,r.SupplierId,null,null,r.ReceiptDate,"GoodsReceipt"),ct);number=reserved.DocumentNumber;}else number=await parameters.ResolveNumberAsync(requestedNumber,r.BranchId,ct);}catch(InvalidOperationException exception){return ApiResponse<object>.Error(exception.Message,400);}
+        if(await u.Repository<GoodsReceipt>().ExistsAsync(x=>x.ReceiptNumber==number,ct))return ApiResponse<object>.Error("Goods receipt number already exists. Refresh the form and try again.",409);
+        var e=new GoodsReceipt{ReceiptNumber=number,ReceiptType=r.ReceiptType,Status=GoodsReceiptStatus.Draft,BranchId=r.BranchId,SupplierId=r.SupplierId,PurchaseOrderId=purchaseOrderIds.Length>0?purchaseOrderIds[0]:null,TradeDossierId=r.TradeDossierId,WarehouseId=r.WarehouseId,SupplierDeliveryNoteNumber=r.SupplierDeliveryNoteNumber?.Trim(),ReceiptDate=r.ReceiptDate,Notes=r.Notes};
         var n=0;foreach(var l in r.Lines)
         {
             if(l.ReceivedQuantity<=0||l.AcceptedQuantity<0||l.RejectedQuantity<0||l.AcceptedQuantity+l.RejectedQuantity!=l.ReceivedQuantity)return ApiResponse<object>.Error("Receipt quantities are inconsistent.",400);
@@ -60,7 +70,18 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
             if(tracking!=InventoryTrackingType.Serial&&serials.Length>0)return ApiResponse<object>.Error("Serial numbers can only be entered for serial-tracked products.",400);
             e.Lines.Add(new GoodsReceiptLine{LineNumber=++n,PurchaseOrderLineId=l.PurchaseOrderLineId,ProductId=l.ProductId,UnitId=l.UnitId,StorageLocationId=l.StorageLocationId,InventoryStatusId=forcedTradeStatusId??l.InventoryStatusId,ExpectedQuantity=l.ExpectedQuantity,ReceivedQuantity=l.ReceivedQuantity,AcceptedQuantity=l.AcceptedQuantity,RejectedQuantity=l.RejectedQuantity,UnitCost=l.UnitCost,LotNumber=l.LotNumber?.Trim(),ManufactureDate=l.ManufactureDate,ExpiryDate=l.ExpiryDate,Notes=l.Notes,Serials=serials.Select(s=>new GoodsReceiptSerial{SerialNumber=s}).ToList()});
         }
-        await u.Repository<GoodsReceipt>().AddAsync(e,ct);await u.SaveChangesAsync(ct);if(trade is not null){await u.Repository<TradeDocumentLink>().AddAsync(new(){TradeDossierId=trade.Id,LinkType=TradeLinkType.GoodsReceipt,SourceId=e.Id,ReferenceNumber=e.ReceiptNumber},ct);foreach(var line in e.Lines)await u.Repository<TradeDocumentLink>().AddAsync(new(){TradeDossierId=trade.Id,LinkType=TradeLinkType.GoodsReceipt,SourceId=e.Id,SourceLineId=line.Id,LinkedQuantity=line.AcceptedQuantity,ReferenceNumber=e.ReceiptNumber},ct);await u.SaveChangesAsync(ct);}if(reserved is not null)await numberSeries.MarkUsedAsync(reserved.UsageId,e.Id,ct);return ApiResponse<object>.Ok(new{e.Id,e.ReceiptNumber,e.TradeDossierId,NumberSeriesUsageId=reserved?.UsageId});
+        try
+        {
+            await u.ExecuteInTransactionAsync(async t=>
+            {
+                await u.Repository<GoodsReceipt>().AddAsync(e,t);await u.SaveChangesAsync(t);
+                foreach(var orderId in purchaseOrderIds)await u.Repository<GoodsReceiptPurchaseOrder>().AddAsync(new(){GoodsReceiptId=e.Id,PurchaseOrderId=orderId},t);
+                if(trade is not null){await u.Repository<TradeDocumentLink>().AddAsync(new(){TradeDossierId=trade.Id,LinkType=TradeLinkType.GoodsReceipt,SourceId=e.Id,ReferenceNumber=e.ReceiptNumber},t);foreach(var line in e.Lines)await u.Repository<TradeDocumentLink>().AddAsync(new(){TradeDossierId=trade.Id,LinkType=TradeLinkType.GoodsReceipt,SourceId=e.Id,SourceLineId=line.Id,LinkedQuantity=line.AcceptedQuantity,ReferenceNumber=e.ReceiptNumber},t);}
+                await u.SaveChangesAsync(t);
+            },ct);
+        }
+        catch(DbUpdateException){return ApiResponse<object>.Error("The goods receipt could not be saved because another transaction used the same number or relation. Refresh and try again.",409);}
+        if(reserved is not null)await numberSeries.MarkUsedAsync(reserved.UsageId,e.Id,ct);return ApiResponse<object>.Ok(new{e.Id,e.ReceiptNumber,e.TradeDossierId,PurchaseOrderIds=purchaseOrderIds,NumberSeriesUsageId=reserved?.UsageId});
     }
 
     public async Task<ApiResponse<object>>PostAsync(long id,CancellationToken ct)
@@ -71,6 +92,7 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
         await u.ExecuteInTransactionAsync(async t=>
         {
             var postLines=new List<PostInventoryLine>();
+            var affectedOrderIds=new HashSet<long>();
             foreach(var line in receipt.Lines)
             {
                 var product=await u.Repository<verii_metivon_api.Modules.Products.Domain.Entities.Product>().GetByIdAsync(line.ProductId,t)??throw new InvalidOperationException("Product not found.");long? lotId=null;
@@ -98,6 +120,7 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
                 if(line.PurchaseOrderLineId.HasValue)
                 {
                     var poLine=await u.Repository<PurchaseOrderLine>().GetByIdForUpdateAsync(line.PurchaseOrderLineId.Value,t)??throw new InvalidOperationException("Purchase order line not found.");
+                    affectedOrderIds.Add(poLine.PurchaseOrderId);
                     var overTolerance=poLine.OverDeliveryTolerance>0?poLine.OverDeliveryTolerance:settings.OverDeliveryTolerancePercent;var newTotal=poLine.ReceivedQuantity+line.ReceivedQuantity;var max=poLine.OrderedQuantity*(1+overTolerance/100m);
                     if(newTotal>max)throw new InvalidOperationException("Over-delivery tolerance exceeded.");if(!settings.AllowPartialReceipt&&newTotal<poLine.OrderedQuantity)throw new InvalidOperationException("Partial receipt is disabled by receiving parameters.");
                     poLine.ReceivedQuantity=newTotal;var minimumComplete=poLine.OrderedQuantity*(1-settings.UnderDeliveryTolerancePercent/100m);poLine.Status=newTotal>=minimumComplete?PurchaseLineStatus.Received:PurchaseLineStatus.PartiallyReceived;
@@ -105,7 +128,7 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
             }
             posting=await inventory.PostAsync(new($"GOODS-RECEIPT:{receipt.Id}","GoodsReceipt",receipt.Id,receipt.ReceiptNumber,receipt.ReceiptDate.ToDateTime(TimeOnly.MinValue),InventoryMovementType.PurchaseReceipt,InventoryMovementDirection.Receipt,settings.InventoryCurrencyCode,postLines),t);
             if(!posting.Success)throw new InvalidOperationException(posting.Message);receipt.InventoryPostingId=posting.Data!.PostingId;receipt.Status=settings.RequireQualityInspection?GoodsReceiptStatus.QualityInspection:GoodsReceiptStatus.Posted;receipt.PostedAt=DateTime.UtcNow;
-            if(receipt.PurchaseOrderId.HasValue){var order=await u.Repository<PurchaseOrder>().Query(true).Include(x=>x.Lines).FirstAsync(x=>x.Id==receipt.PurchaseOrderId,t);order.Status=order.Lines.All(x=>x.Status==PurchaseLineStatus.Received)?PurchaseOrderStatus.Received:PurchaseOrderStatus.PartiallyReceived;}
+            foreach(var orderId in affectedOrderIds){var order=await u.Repository<PurchaseOrder>().Query(true).Include(x=>x.Lines).FirstAsync(x=>x.Id==orderId,t);order.Status=order.Lines.All(x=>x.Status==PurchaseLineStatus.Received)?PurchaseOrderStatus.Received:PurchaseOrderStatus.PartiallyReceived;}
             await u.SaveChangesAsync(t);
         },ct);
         return ApiResponse<object>.Ok(new{receipt.Id,receipt.InventoryPostingId,receipt.Status,LabelsReady=settings.AutoCreateLabels&&trace.AutoCreateLabelsAfterReceipt,LabelCopies=trace.DefaultLabelCopies});

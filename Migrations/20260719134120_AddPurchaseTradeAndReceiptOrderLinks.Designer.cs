@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using verii_metivon_api.Core.Persistence;
 
@@ -11,9 +12,11 @@ using verii_metivon_api.Core.Persistence;
 namespace verii_metivon_api.Migrations
 {
     [DbContext(typeof(MetivonDbContext))]
-    partial class MetivonDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260719134120_AddPurchaseTradeAndReceiptOrderLinks")]
+    partial class AddPurchaseTradeAndReceiptOrderLinks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

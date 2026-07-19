@@ -24,6 +24,10 @@ public sealed class BusinessPartnersController(IBusinessPartnerService service) 
     {
         var response=await service.UpdateAsync(id,request,Culture,ct);return StatusCode(response.StatusCode,response);
     }
+    [HttpDelete("{id:long}")] public async Task<IActionResult> Delete(long id, CancellationToken ct)
+    {
+        var response=await service.DeleteAsync(id,Culture,ct);return StatusCode(response.StatusCode,response);
+    }
     [HttpGet("definition-management/{kind}")]
     public async Task<IActionResult> GetManagedDefinitions(string kind, [FromQuery] DefinitionListQuery query, CancellationToken ct) => Ok(await service.GetManagedDefinitionsAsync(kind, query, Culture, ct));
     [HttpPost("definition-management/{kind}")]

@@ -94,7 +94,10 @@ public sealed class ErpLookupsController(MetivonDbContext db) : ControllerBase
             "paymentterms" => db.PaymentTerms.Where(x => x.IsActive)
                 .Select(x => new LookupRow { Id = x.Id, Code = x.Code, Name = x.Name }),
             "purchaseorders" => db.PurchaseOrders
-                .Where(x => x.BranchId == activeBranchId && x.Status != Modules.Procurement.Domain.Enums.PurchaseOrderStatus.Cancelled)
+                .Where(x => x.BranchId == activeBranchId
+                    && x.Status != Modules.Procurement.Domain.Enums.PurchaseOrderStatus.Cancelled
+                    && x.Status != Modules.Procurement.Domain.Enums.PurchaseOrderStatus.Received
+                    && x.Status != Modules.Procurement.Domain.Enums.PurchaseOrderStatus.Invoiced)
                 .Select(x => new LookupRow { Id = x.Id, Code = x.OrderNumber, Name = x.OrderNumber }),
             "purchaseorderlines" => db.PurchaseOrderLines
                 .Where(x => x.PurchaseOrder.BranchId == activeBranchId && !x.IsClosed && (!parentId.HasValue || x.PurchaseOrderId == parentId))
@@ -185,7 +188,10 @@ public sealed class ErpLookupsController(MetivonDbContext db) : ControllerBase
             inventorySerials = await db.InventorySerials.Where(x => x.IsActive).Join(db.InventoryBalances.Where(x=>x.AvailableQuantity>0 && db.Warehouses.Where(w => w.BranchId == activeBranchId).Select(w => w.Id).Contains(x.WarehouseId)),s=>s.Id,b=>b.InventorySerialId,(s,b)=>new {s.Id,Code=s.SerialNumber,Name=s.SerialNumber,s.ProductId,b.WarehouseId,b.StorageLocationId}).OrderBy(x=>x.Code).Take(2000).ToListAsync(ct),
             currencies = await db.Currencies.Where(x => x.IsActive).OrderBy(x => x.Code).Select(x => new { x.Id, x.Code, x.Name, x.IsoCode, x.Symbol, x.DecimalPlaces }).ToListAsync(ct),
             paymentTerms = await db.PaymentTerms.Where(x => x.IsActive).OrderBy(x => x.DisplayOrder).Select(x => new { x.Id, x.Code, x.Name }).ToListAsync(ct),
-            purchaseOrders = await db.PurchaseOrders.Where(x => x.BranchId == activeBranchId && x.Status != Modules.Procurement.Domain.Enums.PurchaseOrderStatus.Cancelled).OrderByDescending(x => x.OrderDate).Take(200).Select(x => new { x.Id, Code = x.OrderNumber, Name = x.OrderNumber, x.SupplierId, x.WarehouseId }).ToListAsync(ct),
+            purchaseOrders = await db.PurchaseOrders.Where(x => x.BranchId == activeBranchId
+                && x.Status != Modules.Procurement.Domain.Enums.PurchaseOrderStatus.Cancelled
+                && x.Status != Modules.Procurement.Domain.Enums.PurchaseOrderStatus.Received
+                && x.Status != Modules.Procurement.Domain.Enums.PurchaseOrderStatus.Invoiced).OrderByDescending(x => x.OrderDate).Take(200).Select(x => new { x.Id, Code = x.OrderNumber, Name = x.OrderNumber, x.SupplierId, x.WarehouseId }).ToListAsync(ct),
             purchaseOrderLines = await db.PurchaseOrderLines.Where(x => x.PurchaseOrder.BranchId == activeBranchId && !x.IsClosed).OrderBy(x => x.PurchaseOrderId).ThenBy(x => x.LineNumber).Take(1000).Select(x => new { x.Id, Code = x.LineNumber.ToString(), Name = x.Product.Code + " · " + x.Product.Name, x.PurchaseOrderId, x.ProductId, x.UnitId }).ToListAsync(ct),
             salesOrders = await db.SalesOrders.Where(x => x.BranchId == activeBranchId && x.Status != Modules.Sales.Domain.Entities.SalesOrderStatus.Cancelled).OrderByDescending(x => x.OrderDate).Take(200).Select(x => new { x.Id, Code = x.OrderNumber, Name = x.OrderNumber, x.CustomerId, x.WarehouseId }).ToListAsync(ct),
             salesOrderLines = await db.SalesOrderLines.Where(x => x.SalesOrder.BranchId == activeBranchId && x.Status != Modules.Sales.Domain.Entities.SalesLineStatus.Shipped).OrderBy(x => x.SalesOrderId).ThenBy(x => x.LineNumber).Take(1000).Select(x => new { x.Id, Code = x.LineNumber.ToString(), Name = x.Product.Code + " · " + x.Product.Name, x.SalesOrderId, x.ProductId, x.UnitId }).ToListAsync(ct),

@@ -82,6 +82,16 @@ public sealed class BusinessPartnerService(IUnitOfWork unitOfWork, IParameterSer
         unitOfWork.BusinessPartners.Update(entity);await unitOfWork.SaveChangesAsync(ct);return ApiResponse<object>.Ok(new{entity.Id,entity.Code});
     }
 
+    public async Task<ApiResponse<object>> DeleteAsync(long id,string? culture,CancellationToken ct)
+    {
+        var entity=await unitOfWork.BusinessPartners.GetByIdForUpdateAsync(id,ct);
+        if(entity is null)return ApiResponse<object>.Error("Business partner not found.",404);
+        entity.IsActive=false;
+        if(!await unitOfWork.BusinessPartners.SoftDeleteAsync(id,ct))return ApiResponse<object>.Error("Business partner not found.",404);
+        await unitOfWork.SaveChangesAsync(ct);
+        return ApiResponse<object>.Ok(new{entity.Id,entity.Code});
+    }
+
     public async Task<ApiResponse<object>> CreateAsync(CreateBusinessPartnerRequest request, string? culture, CancellationToken ct)
     {
         var settings = await parameters.GetBusinessPartnerParametersAsync(request.BranchId, ct);
@@ -282,5 +292,4 @@ public sealed class BusinessPartnerService(IUnitOfWork unitOfWork, IParameterSer
         foreach (var item in defaults) item.IsDefault = false;
     }
 }
-
 

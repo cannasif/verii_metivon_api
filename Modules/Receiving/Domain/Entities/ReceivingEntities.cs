@@ -20,6 +20,6 @@ public sealed class ReceivingParameterSettings:Entity
     public bool RequireQualityInspection{get;set;}
     public bool AutoCreateLabels{get;set;}=true;
     public int DefaultLabelCopies{get;set;}=1;
-    public string InventoryCurrencyCode{get;set;}="TRY";
+    public long InventoryCurrencyId{get;set;}public Currency InventoryCurrency{get;set;}=null!;public string InventoryCurrencyCode{get;set;}="TRY";
     public byte[] RowVersion{get;set;}=[];
 }

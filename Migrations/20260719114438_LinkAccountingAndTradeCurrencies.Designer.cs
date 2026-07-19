@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using verii_metivon_api.Core.Persistence;
 
@@ -11,9 +12,11 @@ using verii_metivon_api.Core.Persistence;
 namespace verii_metivon_api.Migrations
 {
     [DbContext(typeof(MetivonDbContext))]
-    partial class MetivonDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260719114438_LinkAccountingAndTradeCurrencies")]
+    partial class LinkAccountingAndTradeCurrencies
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1885,9 +1888,6 @@ namespace verii_metivon_api.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(3)");
 
-                    b.Property<long>("PostingCurrencyId")
-                        .HasColumnType("bigint");
-
                     b.Property<bool>("PreventOverlappingOpenCounts")
                         .HasColumnType("bit");
 
@@ -1916,8 +1916,6 @@ namespace verii_metivon_api.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("PostingCurrencyId");
 
                     b.HasIndex("WarehouseId");
 
@@ -2061,9 +2059,6 @@ namespace verii_metivon_api.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(3)");
 
-                    b.Property<long>("DefaultCurrencyId")
-                        .HasColumnType("bigint");
-
                     b.Property<string>("DefaultDespatchScenario")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -2138,8 +2133,6 @@ namespace verii_metivon_api.Migrations
                     b.HasIndex("BranchId")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
-
-                    b.HasIndex("DefaultCurrencyId");
 
                     b.ToTable("RII_EDOCUMENT_PARAMETERS", null, t =>
                         {
@@ -6313,9 +6306,6 @@ namespace verii_metivon_api.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(3)");
 
-                    b.Property<long>("InventoryCurrencyId")
-                        .HasColumnType("bigint");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -6364,8 +6354,6 @@ namespace verii_metivon_api.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("InventoryCurrencyId");
 
                     b.HasIndex("WarehouseId");
 
@@ -6974,9 +6962,6 @@ namespace verii_metivon_api.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(3)");
 
-                    b.Property<long>("InventoryCurrencyId")
-                        .HasColumnType("bigint");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -7023,8 +7008,6 @@ namespace verii_metivon_api.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("InventoryCurrencyId");
 
                     b.HasIndex("WarehouseId");
 
@@ -7862,9 +7845,6 @@ namespace verii_metivon_api.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(3)");
 
-                    b.Property<long>("InventoryCurrencyId")
-                        .HasColumnType("bigint");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -7902,8 +7882,6 @@ namespace verii_metivon_api.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("InventoryCurrencyId");
 
                     b.HasIndex("WarehouseId");
 
@@ -8650,20 +8628,12 @@ namespace verii_metivon_api.Migrations
                         .HasForeignKey("BranchId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("verii_metivon_api.Core.Domain.Currency", "PostingCurrency")
-                        .WithMany()
-                        .HasForeignKey("PostingCurrencyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("verii_metivon_api.Modules.Warehouses.Domain.Entities.Warehouse", "Warehouse")
                         .WithMany()
                         .HasForeignKey("WarehouseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Branch");
-
-                    b.Navigation("PostingCurrency");
 
                     b.Navigation("Warehouse");
                 });
@@ -8676,15 +8646,7 @@ namespace verii_metivon_api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("verii_metivon_api.Core.Domain.Currency", "DefaultCurrency")
-                        .WithMany()
-                        .HasForeignKey("DefaultCurrencyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("Branch");
-
-                    b.Navigation("DefaultCurrency");
                 });
 
             modelBuilder.Entity("verii_metivon_api.Modules.EDocuments.Domain.Entities.ElectronicDocumentStatusHistory", b =>
@@ -9455,20 +9417,12 @@ namespace verii_metivon_api.Migrations
                         .HasForeignKey("BranchId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("verii_metivon_api.Core.Domain.Currency", "InventoryCurrency")
-                        .WithMany()
-                        .HasForeignKey("InventoryCurrencyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("verii_metivon_api.Modules.Warehouses.Domain.Entities.Warehouse", "Warehouse")
                         .WithMany()
                         .HasForeignKey("WarehouseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Branch");
-
-                    b.Navigation("InventoryCurrency");
 
                     b.Navigation("Warehouse");
                 });
@@ -9597,20 +9551,12 @@ namespace verii_metivon_api.Migrations
                         .HasForeignKey("BranchId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("verii_metivon_api.Core.Domain.Currency", "InventoryCurrency")
-                        .WithMany()
-                        .HasForeignKey("InventoryCurrencyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("verii_metivon_api.Modules.Warehouses.Domain.Entities.Warehouse", "Warehouse")
                         .WithMany()
                         .HasForeignKey("WarehouseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Branch");
-
-                    b.Navigation("InventoryCurrency");
 
                     b.Navigation("Warehouse");
                 });
@@ -9758,20 +9704,12 @@ namespace verii_metivon_api.Migrations
                         .HasForeignKey("BranchId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("verii_metivon_api.Core.Domain.Currency", "InventoryCurrency")
-                        .WithMany()
-                        .HasForeignKey("InventoryCurrencyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("verii_metivon_api.Modules.Warehouses.Domain.Entities.Warehouse", "Warehouse")
                         .WithMany()
                         .HasForeignKey("WarehouseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Branch");
-
-                    b.Navigation("InventoryCurrency");
 
                     b.Navigation("Warehouse");
                 });

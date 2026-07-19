@@ -14,7 +14,7 @@ public sealed class ReceivingParameterSettingsConfiguration:IEntityTypeConfigura
         b.HasKey(x=>x.Id);b.HasQueryFilter(x=>!x.IsDeleted);
         b.HasIndex(x=>new{x.BranchId,x.WarehouseId}).IsUnique().HasFilter("[IsDeleted] = 0");
         b.Property(x=>x.OverDeliveryTolerancePercent).HasPrecision(7,4);b.Property(x=>x.UnderDeliveryTolerancePercent).HasPrecision(7,4);
-        b.Property(x=>x.InventoryCurrencyCode).HasMaxLength(3).IsUnicode(false).IsRequired();b.Property(x=>x.RowVersion).IsRowVersion();
+        b.Property(x=>x.InventoryCurrencyCode).HasMaxLength(3).IsUnicode(false).IsRequired();b.Property(x=>x.RowVersion).IsRowVersion();b.HasOne(x=>x.InventoryCurrency).WithMany().HasForeignKey(x=>x.InventoryCurrencyId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x=>x.Branch).WithMany().HasForeignKey(x=>x.BranchId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x=>x.Warehouse).WithMany().HasForeignKey(x=>x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
     }

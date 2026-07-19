@@ -11,5 +11,5 @@ public sealed class ShippingParameterSettings:Entity
  public bool AllowPastShipmentDate{get;set;}public bool RequireCarrierName{get;set;}public bool RequireVehiclePlate{get;set;}public bool RequireDriverName{get;set;}public bool RequireTrackingNumber{get;set;}
  public int MaximumLinesPerShipment{get;set;}=100;public bool RequireLotForLotTracked{get;set;}=true;public bool RequireSerialForSerialTracked{get;set;}=true;
  public bool AutoCreateDeliveryNote{get;set;}=true;public string DeliveryNoteScenario{get;set;}="TEMELIRSALIYE";public DeliveryNoteStatus DefaultDeliveryNoteStatus{get;set;}=DeliveryNoteStatus.ReadyForElectronicSubmission;
- public string InventoryCurrencyCode{get;set;}="TRY";public byte[]RowVersion{get;set;}=[];
+ public long InventoryCurrencyId{get;set;}public Currency InventoryCurrency{get;set;}=null!;public string InventoryCurrencyCode{get;set;}="TRY";public byte[]RowVersion{get;set;}=[];
 }

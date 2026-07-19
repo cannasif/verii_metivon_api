@@ -13,5 +13,5 @@ public sealed class EDocumentParameterSettings:Entity
  public bool AutoQueueAfterCreate{get;set;}public bool RequireUblValidation{get;set;}=true;public bool RequireCompanyLegalProfile{get;set;}=true;public bool RequireTaxNumberValidation{get;set;}=true;
  public bool PreventDuplicateSourceDocument{get;set;}=true;public bool FallbackToEArchive{get;set;}=true;public bool RequireRecipientMailboxForEInvoice{get;set;}=true;public bool SendEArchiveByEmail{get;set;}=true;public bool AllowManualScenario{get;set;}
  public int RetryDelayMinutes{get;set;}=15;public int StatusPollingIntervalMinutes{get;set;}=10;public int ArchiveRetentionYears{get;set;}=10;public int MaximumXmlSizeKb{get;set;}=5120;
- public string DefaultCurrencyCode{get;set;}="TRY";public byte[]RowVersion{get;set;}=[];
+ public long DefaultCurrencyId{get;set;}public Currency DefaultCurrency{get;set;}=null!;public string DefaultCurrencyCode{get;set;}="TRY";public byte[]RowVersion{get;set;}=[];
 }

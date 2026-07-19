@@ -6,7 +6,7 @@ namespace verii_metivon_api.Modules.Accounting.Infrastructure.Persistence.Config
 
 public sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<LedgerAccount>
 {
-    public void Configure(EntityTypeBuilder<LedgerAccount> b) { b.ToTable("RII_LEDGER_ACCOUNTS"); b.HasIndex(x => x.Code).IsUnique(); b.Property(x => x.Code).HasMaxLength(30).IsRequired(); b.HasOne(x => x.Parent).WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict); }
+    public void Configure(EntityTypeBuilder<LedgerAccount> b) { b.ToTable("RII_LEDGER_ACCOUNTS"); b.HasIndex(x => x.Code).IsUnique(); b.Property(x => x.Code).HasMaxLength(30).IsRequired(); b.Property(x => x.CurrencyCode).HasMaxLength(3).IsUnicode(false).IsRequired(); b.HasOne(x => x.Currency).WithMany().HasForeignKey(x => x.CurrencyId).OnDelete(DeleteBehavior.Restrict); b.HasOne(x => x.Parent).WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict); }
 }
 public sealed class FiscalPeriodConfiguration : IEntityTypeConfiguration<FiscalPeriod>
 {
@@ -18,7 +18,7 @@ public sealed class InventoryPostingProfileConfiguration : IEntityTypeConfigurat
 }
 public sealed class JournalEntryConfiguration : IEntityTypeConfiguration<JournalEntry>
 {
-    public void Configure(EntityTypeBuilder<JournalEntry> b) { b.ToTable("RII_JOURNAL_ENTRIES"); b.HasIndex(x => x.JournalNumber).IsUnique(); b.HasIndex(x => new { x.SourceType, x.SourceId }); b.Property(x => x.ExchangeRate).HasPrecision(18, 8); b.HasOne(x => x.ReversalOf).WithMany().HasForeignKey(x => x.ReversalOfId).OnDelete(DeleteBehavior.Restrict); }
+    public void Configure(EntityTypeBuilder<JournalEntry> b) { b.ToTable("RII_JOURNAL_ENTRIES"); b.HasIndex(x => x.JournalNumber).IsUnique(); b.HasIndex(x => new { x.SourceType, x.SourceId }); b.Property(x => x.CurrencyCode).HasMaxLength(3).IsUnicode(false).IsRequired(); b.Property(x => x.ExchangeRate).HasPrecision(18, 8); b.HasOne(x => x.Currency).WithMany().HasForeignKey(x => x.CurrencyId).OnDelete(DeleteBehavior.Restrict); b.HasOne(x => x.ReversalOf).WithMany().HasForeignKey(x => x.ReversalOfId).OnDelete(DeleteBehavior.Restrict); }
 }
 public sealed class JournalEntryLineConfiguration : IEntityTypeConfiguration<JournalEntryLine>
 {
@@ -44,6 +44,7 @@ public sealed class AccountingParameterSettingsConfiguration : IEntityTypeConfig
         b.Property(x => x.JournalBalanceTolerance).HasPrecision(24, 8);
         b.Property(x => x.CostCloseTolerance).HasPrecision(24, 8);
         b.Property(x => x.RowVersion).IsRowVersion();
+        b.HasOne(x => x.DefaultCurrency).WithMany().HasForeignKey(x => x.DefaultCurrencyId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
     }

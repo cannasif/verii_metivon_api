@@ -12,5 +12,5 @@ public sealed class TransferParameterSettings:Entity
  public bool RequireExpectedReceiptDate{get;set;}=true;public int DefaultTransitDays{get;set;}=1;public bool AllowPastTransferDate{get;set;}
  public bool AllowReceiptBeforeExpectedDate{get;set;}=true;public bool RequireNotes{get;set;}public int MaximumLinesPerTransfer{get;set;}=100;
  public bool RequireLotForLotTracked{get;set;}=true;public bool RequireSerialForSerialTracked{get;set;}=true;public long? DefaultInventoryStatusId{get;set;}
- public string InventoryCurrencyCode{get;set;}="TRY";public byte[] RowVersion{get;set;}=[];
+ public long InventoryCurrencyId{get;set;}public Currency InventoryCurrency{get;set;}=null!;public string InventoryCurrencyCode{get;set;}="TRY";public byte[] RowVersion{get;set;}=[];
 }

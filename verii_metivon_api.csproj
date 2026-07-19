@@ -6,6 +6,7 @@
     <RootNamespace>verii_metivon_api</RootNamespace>
     <AssemblyName>verii_metivon_api</AssemblyName>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**/bin/**;tests/**/obj/**;**/work/**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />

@@ -58,8 +58,28 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
             if(tracking!=InventoryTrackingType.Serial&&serials.Length>0)return ApiResponse<object>.Error("Serial numbers can only be entered for serial-tracked products.",400);
             foreach(var serial in serials){var key=$"{line.ProductId}:{serial}";if(!requestSerials.Add(key))return ApiResponse<object>.Error($"Duplicate serial number in receipt: {serial}",400);}
         }
-        ReservedNumber? reserved=null;string number;try{var requestedNumber=r.ReceiptNumber?.Trim();if(string.IsNullOrWhiteSpace(requestedNumber)){reserved=await numberSeries.ReserveAsync(new("Receiving","GoodsReceiptNumber",null,r.BranchId,r.WarehouseId,null,r.SupplierId,null,null,r.ReceiptDate,"GoodsReceipt"),ct);number=reserved.DocumentNumber;}else number=await parameters.ResolveNumberAsync(requestedNumber,r.BranchId,ct);}catch(InvalidOperationException exception){return ApiResponse<object>.Error(exception.Message,400);}
-        if(await u.Repository<GoodsReceipt>().ExistsAsync(x=>x.ReceiptNumber==number,ct))return ApiResponse<object>.Error("Goods receipt number already exists. Refresh the form and try again.",409);
+        ReservedNumber? reserved=null;string number=string.Empty;
+        try
+        {
+            var requestedNumber=r.ReceiptNumber?.Trim();
+            if(string.IsNullOrWhiteSpace(requestedNumber))
+            {
+                const int maximumAutomaticNumberAttempts=100;
+                for(var attempt=0;attempt<maximumAutomaticNumberAttempts;attempt++)
+                {
+                    var candidate=await numberSeries.ReserveAsync(new("Receiving","GoodsReceiptNumber",null,r.BranchId,r.WarehouseId,null,r.SupplierId,null,null,r.ReceiptDate,"GoodsReceipt"),ct);
+                    if(!await u.Repository<GoodsReceipt>().ExistsAsync(x=>x.ReceiptNumber==candidate.DocumentNumber,ct)){reserved=candidate;number=candidate.DocumentNumber;break;}
+                    await numberSeries.CancelAsync(candidate.UsageId,"AUTO_SKIPPED_EXISTING_GOODS_RECEIPT_NUMBER",ct);
+                }
+                if(reserved is null)return ApiResponse<object>.Error("A unique goods receipt number could not be generated. Review the assigned number series.",409);
+            }
+            else
+            {
+                number=await parameters.ResolveNumberAsync(requestedNumber,r.BranchId,ct);
+                if(await u.Repository<GoodsReceipt>().ExistsAsync(x=>x.ReceiptNumber==number,ct))return ApiResponse<object>.Error("Goods receipt number already exists.",409);
+            }
+        }
+        catch(InvalidOperationException exception){return ApiResponse<object>.Error(exception.Message,400);}
         var e=new GoodsReceipt{ReceiptNumber=number,ReceiptType=r.ReceiptType,Status=GoodsReceiptStatus.Draft,BranchId=r.BranchId,SupplierId=r.SupplierId,PurchaseOrderId=purchaseOrderIds.Length>0?purchaseOrderIds[0]:null,TradeDossierId=r.TradeDossierId,WarehouseId=r.WarehouseId,SupplierDeliveryNoteNumber=r.SupplierDeliveryNoteNumber?.Trim(),ReceiptDate=r.ReceiptDate,Notes=r.Notes};
         var n=0;foreach(var l in r.Lines)
         {
@@ -78,10 +98,11 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
                 foreach(var orderId in purchaseOrderIds)await u.Repository<GoodsReceiptPurchaseOrder>().AddAsync(new(){GoodsReceiptId=e.Id,PurchaseOrderId=orderId},t);
                 if(trade is not null){await u.Repository<TradeDocumentLink>().AddAsync(new(){TradeDossierId=trade.Id,LinkType=TradeLinkType.GoodsReceipt,SourceId=e.Id,ReferenceNumber=e.ReceiptNumber},t);foreach(var line in e.Lines)await u.Repository<TradeDocumentLink>().AddAsync(new(){TradeDossierId=trade.Id,LinkType=TradeLinkType.GoodsReceipt,SourceId=e.Id,SourceLineId=line.Id,LinkedQuantity=line.AcceptedQuantity,ReferenceNumber=e.ReceiptNumber},t);}
                 await u.SaveChangesAsync(t);
+                if(reserved is not null)await numberSeries.MarkUsedAsync(reserved.UsageId,e.Id,t);
             },ct);
         }
         catch(DbUpdateException){return ApiResponse<object>.Error("The goods receipt could not be saved because another transaction used the same number or relation. Refresh and try again.",409);}
-        if(reserved is not null)await numberSeries.MarkUsedAsync(reserved.UsageId,e.Id,ct);return ApiResponse<object>.Ok(new{e.Id,e.ReceiptNumber,e.TradeDossierId,PurchaseOrderIds=purchaseOrderIds,NumberSeriesUsageId=reserved?.UsageId});
+        return ApiResponse<object>.Ok(new{e.Id,e.ReceiptNumber,e.TradeDossierId,PurchaseOrderIds=purchaseOrderIds,NumberSeriesUsageId=reserved?.UsageId});
     }
 
     public async Task<ApiResponse<object>>PostAsync(long id,CancellationToken ct)

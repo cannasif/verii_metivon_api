@@ -7,7 +7,7 @@ namespace verii_metivon_api.Modules.Warehouses.Api;
  [HttpGet("locations/{id:long}")]public async Task<IActionResult>GetLocation(long id,CancellationToken ct){var r=await s.GetLocationAsync(id,ct);return StatusCode(r.StatusCode,r);}
  [HttpPost]public async Task<IActionResult>Create(SaveWarehouseRequest x,CancellationToken ct){var r=await s.CreateWarehouseAsync(x,ct);return StatusCode(r.StatusCode,r);}
  [HttpPost("locations")]public async Task<IActionResult>CreateLocation(SaveLocationRequest x,CancellationToken ct){var r=await s.CreateLocationAsync(x,ct);return StatusCode(r.StatusCode,r);}
- [HttpPost("{id:long}/update")]public async Task<IActionResult>Update(long id,SaveWarehouseRequest x,CancellationToken ct){var r=await s.UpdateWarehouseAsync(id,x,ct);return StatusCode(r.StatusCode,r);}
- [HttpPost("locations/{id:long}/update")]public async Task<IActionResult>UpdateLocation(long id,SaveLocationRequest x,CancellationToken ct){var r=await s.UpdateLocationAsync(id,x,ct);return StatusCode(r.StatusCode,r);}
- [HttpPost("{id:long}/delete")]public async Task<IActionResult>Delete(long id,CancellationToken ct){var r=await s.DeleteWarehouseAsync(id,ct);return StatusCode(r.StatusCode,r);}
- [HttpPost("locations/{id:long}/delete")]public async Task<IActionResult>DeleteLocation(long id,CancellationToken ct){var r=await s.DeleteLocationAsync(id,ct);return StatusCode(r.StatusCode,r);}}
+ [HttpPut("{id:long}")]public async Task<IActionResult>Update(long id,SaveWarehouseRequest x,CancellationToken ct){var r=await s.UpdateWarehouseAsync(id,x,ct);return StatusCode(r.StatusCode,r);}
+ [HttpPut("locations/{id:long}")]public async Task<IActionResult>UpdateLocation(long id,SaveLocationRequest x,CancellationToken ct){var r=await s.UpdateLocationAsync(id,x,ct);return StatusCode(r.StatusCode,r);}
+ [HttpDelete("{id:long}")]public async Task<IActionResult>Delete(long id,CancellationToken ct){var r=await s.DeleteWarehouseAsync(id,ct);return StatusCode(r.StatusCode,r);}
+ [HttpDelete("locations/{id:long}")]public async Task<IActionResult>DeleteLocation(long id,CancellationToken ct){var r=await s.DeleteLocationAsync(id,ct);return StatusCode(r.StatusCode,r);}}

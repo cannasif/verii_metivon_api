@@ -20,7 +20,7 @@ public sealed class BusinessPartnersController(IBusinessPartnerService service) 
         var response = await service.CreateAsync(request, Culture, ct);
         return StatusCode(response.StatusCode, response);
     }
-    [HttpPost("{id:long}/update")] public async Task<IActionResult> Update(long id, CreateBusinessPartnerRequest request, CancellationToken ct)
+    [HttpPut("{id:long}")] public async Task<IActionResult> Update(long id, CreateBusinessPartnerRequest request, CancellationToken ct)
     {
         var response=await service.UpdateAsync(id,request,Culture,ct);return StatusCode(response.StatusCode,response);
     }
@@ -32,13 +32,13 @@ public sealed class BusinessPartnersController(IBusinessPartnerService service) 
         var response = await service.CreateDefinitionAsync(kind, request, Culture, ct);
         return StatusCode(response.StatusCode, response);
     }
-    [HttpPost("definition-management/{kind}/{id:long}/update")]
+    [HttpPut("definition-management/{kind}/{id:long}")]
     public async Task<IActionResult> UpdateDefinition(string kind, long id, SaveDefinitionRequest request, CancellationToken ct)
     {
         var response = await service.UpdateDefinitionAsync(kind, id, request, Culture, ct);
         return StatusCode(response.StatusCode, response);
     }
-    [HttpPost("definition-management/{kind}/{id:long}/delete")]
+    [HttpDelete("definition-management/{kind}/{id:long}")]
     public async Task<IActionResult> DeleteDefinition(string kind, long id, CancellationToken ct)
     {
         var response = await service.DeleteDefinitionAsync(kind, id, Culture, ct);

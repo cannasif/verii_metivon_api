@@ -32,6 +32,10 @@ public sealed record CreateBusinessPartnerRequest(
     string? TaxOffice, string? TaxNumber, string? NationalIdentityNumber,
     string? Email, string? Phone, string? MobilePhone, string? Website,
     decimal? CreditLimit, bool? HasUnlimitedCredit, string? Notes);
+public sealed record BusinessPartnerDetail(
+    long Id,string Code,string Name,string? LegalName,long BranchId,long BusinessPartnerTypeId,long? CustomerGroupId,
+    long PaymentTermId,long CurrencyId,long TaxGroupId,string? TaxOffice,string? TaxNumber,string? NationalIdentityNumber,
+    string? Email,string? Phone,string? MobilePhone,string? Website,decimal CreditLimit,bool HasUnlimitedCredit,bool IsActive,string? Notes);
 public sealed record BusinessPartnerItem(
     long Id, string Code, string Name, string PartnerType, string? CustomerGroup,
     string PaymentTerm, string Currency, string TaxGroup, decimal CreditLimit,

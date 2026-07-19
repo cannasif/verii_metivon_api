@@ -63,6 +63,25 @@ public sealed class BusinessPartnerService(IUnitOfWork unitOfWork, IParameterSer
         return ApiResponse<BusinessPartnerDefinitions>.Ok(data, BusinessPartnerMessages.Get("DefinitionsRetrieved", culture));
     }
 
+    public async Task<ApiResponse<BusinessPartnerDetail>> GetByIdAsync(long id,string? culture,CancellationToken ct)
+    {
+        var item=await unitOfWork.BusinessPartners.Query().Where(x=>x.Id==id).Select(x=>new BusinessPartnerDetail(x.Id,x.Code,x.Name,x.LegalName,x.BranchId,x.BusinessPartnerTypeId,x.CustomerGroupId,x.PaymentTermId,x.CurrencyId,x.TaxGroupId,x.TaxOffice,x.TaxNumber,x.NationalIdentityNumber,x.Email,x.Phone,x.MobilePhone,x.Website,x.CreditLimit,x.HasUnlimitedCredit,x.IsActive,x.Notes)).FirstOrDefaultAsync(ct);
+        return item is null?ApiResponse<BusinessPartnerDetail>.Error("Business partner not found.",404):ApiResponse<BusinessPartnerDetail>.Ok(item);
+    }
+
+    public async Task<ApiResponse<object>> UpdateAsync(long id,CreateBusinessPartnerRequest request,string? culture,CancellationToken ct)
+    {
+        var entity=await unitOfWork.BusinessPartners.GetByIdForUpdateAsync(id,ct);
+        if(entity is null)return ApiResponse<object>.Error("Business partner not found.",404);
+        if(string.IsNullOrWhiteSpace(request.Code)||string.IsNullOrWhiteSpace(request.Name)||request.BusinessPartnerTypeId is not >0||request.PaymentTermId is not >0||request.CurrencyId is not >0||request.TaxGroupId is not >0)return ApiResponse<object>.Error(BusinessPartnerMessages.Get("Required",culture),400);
+        var code=request.Code.Trim().ToUpperInvariant();var tax=request.TaxNumber?.Trim();var national=request.NationalIdentityNumber?.Trim();var email=request.Email?.Trim().ToLowerInvariant();
+        if(await unitOfWork.BusinessPartners.ExistsAsync(x=>x.Id!=id&&x.Code==code,ct))return ApiResponse<object>.Error(BusinessPartnerMessages.Get("DuplicateCode",culture),409);
+        if(!string.IsNullOrWhiteSpace(tax)&&await unitOfWork.BusinessPartners.ExistsAsync(x=>x.Id!=id&&x.TaxNumber==tax,ct))return ApiResponse<object>.Error(BusinessPartnerMessages.Get("DuplicateTaxNumber",culture),409);
+        if(!string.IsNullOrWhiteSpace(national)&&await unitOfWork.BusinessPartners.ExistsAsync(x=>x.Id!=id&&x.NationalIdentityNumber==national,ct))return ApiResponse<object>.Error(BusinessPartnerMessages.Get("DuplicateNationalId",culture),409);
+        entity.Code=code;entity.Name=request.Name.Trim();entity.LegalName=request.LegalName?.Trim();entity.BranchId=request.BranchId;entity.BusinessPartnerTypeId=request.BusinessPartnerTypeId.Value;entity.CustomerGroupId=request.CustomerGroupId;entity.PaymentTermId=request.PaymentTermId.Value;entity.CurrencyId=request.CurrencyId.Value;entity.TaxGroupId=request.TaxGroupId.Value;entity.TaxOffice=request.TaxOffice?.Trim();entity.TaxNumber=tax;entity.NationalIdentityNumber=national;entity.Email=email;entity.Phone=request.Phone?.Trim();entity.MobilePhone=request.MobilePhone?.Trim();entity.Website=request.Website?.Trim();entity.CreditLimit=request.CreditLimit??0;entity.HasUnlimitedCredit=request.HasUnlimitedCredit??false;entity.Notes=request.Notes?.Trim();
+        unitOfWork.BusinessPartners.Update(entity);await unitOfWork.SaveChangesAsync(ct);return ApiResponse<object>.Ok(new{entity.Id,entity.Code});
+    }
+
     public async Task<ApiResponse<object>> CreateAsync(CreateBusinessPartnerRequest request, string? culture, CancellationToken ct)
     {
         var settings = await parameters.GetBusinessPartnerParametersAsync(request.BranchId, ct);

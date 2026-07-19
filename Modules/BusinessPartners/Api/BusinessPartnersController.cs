@@ -11,10 +11,18 @@ public sealed class BusinessPartnersController(IBusinessPartnerService service) 
     private string? Culture => Request.Headers.AcceptLanguage.FirstOrDefault();
     [HttpGet] public async Task<IActionResult> GetAll([FromQuery] BusinessPartnerListQuery query, CancellationToken ct) => Ok(await service.GetAllAsync(query, Culture, ct));
     [HttpGet("definitions")] public async Task<IActionResult> GetDefinitions(CancellationToken ct) => Ok(await service.GetDefinitionsAsync(Culture, ct));
+    [HttpGet("{id:long}")] public async Task<IActionResult> GetById(long id, CancellationToken ct)
+    {
+        var response=await service.GetByIdAsync(id,Culture,ct);return StatusCode(response.StatusCode,response);
+    }
     [HttpPost] public async Task<IActionResult> Create(CreateBusinessPartnerRequest request, CancellationToken ct)
     {
         var response = await service.CreateAsync(request, Culture, ct);
         return StatusCode(response.StatusCode, response);
+    }
+    [HttpPost("{id:long}/update")] public async Task<IActionResult> Update(long id, CreateBusinessPartnerRequest request, CancellationToken ct)
+    {
+        var response=await service.UpdateAsync(id,request,Culture,ct);return StatusCode(response.StatusCode,response);
     }
     [HttpGet("definition-management/{kind}")]
     public async Task<IActionResult> GetManagedDefinitions(string kind, [FromQuery] DefinitionListQuery query, CancellationToken ct) => Ok(await service.GetManagedDefinitionsAsync(kind, query, Culture, ct));

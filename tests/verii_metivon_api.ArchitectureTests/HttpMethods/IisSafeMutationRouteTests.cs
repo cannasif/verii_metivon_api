@@ -1,5 +1,7 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
+using verii_metivon_api.Core.HttpMethods;
 using Xunit;
 
 namespace verii_metivon_api.ArchitectureTests.HttpMethods;
@@ -21,5 +23,21 @@ public sealed class IisSafeMutationRouteTests
             .ToArray();
 
         Assert.Empty(invalidRoutes);
+    }
+
+    [Theory]
+    [InlineData("/api/branches/7/update", "/api/branches/7", "PUT")]
+    [InlineData("/api/branches/7/delete", "/api/branches/7", "DELETE")]
+    [InlineData("/api/parameters/accounting/update", "/api/parameters/accounting", "PUT")]
+    public void Mutation_suffixes_are_restored_before_routing(string requestPath, string expectedPath, string expectedMethod)
+    {
+        var resolved = IisSafeHttpMethodMiddleware.TryResolveSuffix(
+            new PathString(requestPath),
+            out var normalizedPath,
+            out var normalizedMethod);
+
+        Assert.True(resolved);
+        Assert.Equal(expectedPath, normalizedPath.Value);
+        Assert.Equal(expectedMethod, normalizedMethod);
     }
 }

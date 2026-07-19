@@ -124,6 +124,20 @@ public sealed class ErpLookupsController(MetivonDbContext db) : ControllerBase
                 }),
             "tradedossiers" => db.TradeDossiers.Where(x => x.BranchId == activeBranchId && x.Status != Modules.TradeOperations.Domain.Entities.TradeDossierStatus.Closed && x.Status != Modules.TradeOperations.Domain.Entities.TradeDossierStatus.Cancelled)
                 .Select(x => new LookupRow { Id = x.Id, Code = x.DossierNumber, Name = x.BusinessPartner.Name + " · " + x.Direction }),
+            "importtradedossiers" => db.TradeDossiers
+                .Where(x => x.BranchId == activeBranchId
+                    && x.Direction == Modules.TradeOperations.Domain.Entities.TradeDirection.Import
+                    && x.Status != Modules.TradeOperations.Domain.Entities.TradeDossierStatus.Closed
+                    && x.Status != Modules.TradeOperations.Domain.Entities.TradeDossierStatus.Cancelled
+                    && (!parentId.HasValue || x.BusinessPartnerId == parentId))
+                .Select(x => new LookupRow { Id = x.Id, Code = x.DossierNumber, Name = x.BusinessPartner.Name + " · " + x.Direction }),
+            "exporttradedossiers" => db.TradeDossiers
+                .Where(x => x.BranchId == activeBranchId
+                    && x.Direction == Modules.TradeOperations.Domain.Entities.TradeDirection.Export
+                    && x.Status != Modules.TradeOperations.Domain.Entities.TradeDossierStatus.Closed
+                    && x.Status != Modules.TradeOperations.Domain.Entities.TradeDossierStatus.Cancelled
+                    && (!parentId.HasValue || x.BusinessPartnerId == parentId))
+                .Select(x => new LookupRow { Id = x.Id, Code = x.DossierNumber, Name = x.BusinessPartner.Name + " · " + x.Direction }),
             _ => null
         };
 

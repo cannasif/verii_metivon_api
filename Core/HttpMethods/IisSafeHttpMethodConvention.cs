@@ -21,7 +21,11 @@ public sealed class IisSafeHttpMethodConvention : IActionModelConvention
             var methods = GetMethods(selector);
             if (methods.Contains(Put, StringComparer.OrdinalIgnoreCase))
             {
-                AddPostAliasIfMissing(action, selector, GetTemplate(selector));
+                var template = GetTemplate(selector)?.Trim('/');
+                AddPostAliasIfMissing(
+                    action,
+                    selector,
+                    string.IsNullOrWhiteSpace(template) ? "update" : $"{template}/update");
             }
 
             if (methods.Contains(Delete, StringComparer.OrdinalIgnoreCase))

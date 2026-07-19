@@ -227,6 +227,16 @@ Schema/mapper unit, hook/API adapter, component interaction, route permission, l
 
 Paged request/response, filter/sort, Problem Details kodları, permission, enum, serialization, idempotency ve correlation header'ları API/web arasında tek sözleşmedir. OpenAPI'den TypeScript client/type üretimi SHOULD kullanılır; elle kopyalanmış DTO farkı CI'da engellenir.
 
+### 4.1 Para birimi ve kur ana veri sözleşmesi
+
+- Para birimi kullanıcı tarafından serbest metin olarak yazılamaz. Finansal veya ticari kayıt `CurrencyId` ile aktif `RII_CURRENCIES` kaydına bağlanır; web searchable/infinite selector kullanır.
+- `CurrencyCode` ve `CurrencySymbol` yalnız okunabilir gösterim, entegrasyon veya tarihsel snapshot amacıyla tutulabilir. API bunları istemciden güvenilir ana veri olarak kabul etmez; seçilen `CurrencyId` üzerinden üretir.
+- İşlem anındaki kur sonradan değişmeyecek şekilde `OriginalExchangeRate`, `AppliedExchangeRate`, `ExchangeRateDate` ve `ExchangeRateSource` ile snapshot alınır. Kaynak kur salt okunur; yetkili kullanıcı uygulanan kuru değiştirebilir.
+- Harici kur birden fazla para birimi birimi için yayımlanıyorsa birim kur `quoted rate / unit` olarak normalize edilir. Satış kuru yoksa tanımlı fallback politikası (örneğin kıymetli madenlerde alış kuru) açıkça uygulanır.
+- Sistem ana para biriminin kuru 1'dir. Ana para birimi kodu hard-code edilmez; Genel Ayarlar'daki `DefaultCurrencyId` belirleyicidir.
+- Geçmiş işlem kayıtları güncel kur servisi yeniden çağrılarak hesaplanmaz. Maliyet, muhasebe ve audit her zaman kayıt anındaki snapshot değerlerini kullanır.
+- Migration eski serbest metin kodlarını ISO kodu/kod eşleşmesiyle `CurrencyId`'ye backfill eder; eşleşmeyen veriyi sessizce 0 ID ile ilişkilendiremez.
+
 ## 5. Kod kalitesi
 
 ### API MUST
@@ -288,4 +298,3 @@ Metivon başlangıç ölçümü (2026-07-19): 39 controller, yaklaşık 40 servi
 ## 9. Mimari sapma (ADR)
 
 Sapma gerekiyorsa sürümlenen ADR; bağlamı, kararı, alternatifleri, güvenlik/performans etkisini, geri alma koşulunu, sahibini ve son kullanma tarihini içerir. Bunlar yoksa istisna kabul edilmez.
-

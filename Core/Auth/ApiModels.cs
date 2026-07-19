@@ -2,9 +2,10 @@ namespace verii_metivon_api.Core.Auth;
 
 using verii_metivon_api.Core.Paging;
 
-public sealed record LoginRequest(string Email, string Password, bool RememberMe);
-public sealed record RefreshRequest(string RefreshToken);
-public sealed record LoginResult(string Token, string RefreshToken, DateTime RefreshTokenExpiresAt, long UserId, string SessionId, bool RememberMe);
+public sealed record LoginRequest(string Email, string Password, bool RememberMe, long? BranchId = null);
+public sealed record RefreshRequest(string RefreshToken, long? BranchId = null);
+public sealed record LoginResult(string Token, string RefreshToken, DateTime RefreshTokenExpiresAt, long UserId, string SessionId, bool RememberMe,
+    long BranchId, string BranchCode, string BranchName);
 public sealed record MyPermissionsResult(long UserId, string RoleTitle, bool IsSystemAdmin,
     IReadOnlyList<string> PermissionGroups, IReadOnlyList<string> PermissionCodes);
 public sealed record AppBootstrapUser(long Id, string Email, string Name);

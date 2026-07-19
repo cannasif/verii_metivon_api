@@ -9,7 +9,7 @@ namespace verii_metivon_api.Core.Auth;
 
 public sealed class JwtTokenService(IConfiguration configuration)
 {
-    public string Create(User user)
+    public string Create(User user, long? activeBranchId = null, string? activeBranchCode = null)
     {
         var detail = user.Detail;
         var claims = new[]
@@ -20,7 +20,8 @@ public sealed class JwtTokenService(IConfiguration configuration)
             new Claim(ClaimTypes.Role, user.Role),
             new Claim("firstName", detail?.FirstName ?? string.Empty),
             new Claim("lastName", detail?.LastName ?? string.Empty),
-            new Claim("branchId", user.BranchId.ToString())
+            new Claim("branchId", (activeBranchId ?? user.BranchId).ToString()),
+            new Claim("branchCode", activeBranchCode ?? user.Branch?.Code ?? string.Empty)
         };
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JwtSettings:SecretKey"]!));
         var token = new JwtSecurityToken(configuration["JwtSettings:Issuer"], configuration["JwtSettings:Audience"], claims,

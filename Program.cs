@@ -135,6 +135,7 @@ app.UseExceptionHandler(handler => handler.Run(async context =>
 }));
 app.UseStaticFiles();
 app.UseAuthentication();
+app.UseMiddleware<ActiveBranchGuardMiddleware>();
 app.UseAuthorization();
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.MapControllers();
@@ -155,12 +156,19 @@ app.MapPost("/api/auth/login", async (LoginRequest request, IUnitOfWork unitOfWo
     if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         return Results.Json(ApiResponse<LoginResult>.Error("Email or password is incorrect.", 401), statusCode: 401);
 
+    var activeBranchId = request.BranchId ?? user.BranchId;
+    if (!string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase) && activeBranchId != user.BranchId)
+        return Results.Json(ApiResponse<LoginResult>.Error("You are not authorized to use the selected branch.", 403), statusCode: 403);
+    var activeBranch = await unitOfWork.Branches.FirstOrDefaultAsync(x => x.Id == activeBranchId && x.IsActive);
+    if (activeBranch is null)
+        return Results.Json(ApiResponse<LoginResult>.Error("Selected branch is not active or could not be found.", 400), statusCode: 400);
+
     user.LastLoginAt = DateTime.UtcNow;
     user.RefreshToken = JwtTokenService.CreateRefreshToken();
     user.RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(request.RememberMe ? 30 : 1);
     await unitOfWork.SaveChangesAsync();
-    var result = new LoginResult(tokens.Create(user), user.RefreshToken, user.RefreshTokenExpiresAt.Value,
-        user.Id, Guid.NewGuid().ToString("N"), request.RememberMe);
+    var result = new LoginResult(tokens.Create(user, activeBranch.Id, activeBranch.Code), user.RefreshToken, user.RefreshTokenExpiresAt.Value,
+        user.Id, Guid.NewGuid().ToString("N"), request.RememberMe, activeBranch.Id, activeBranch.Code, activeBranch.Name);
     return Results.Ok(ApiResponse<LoginResult>.Ok(result, "Login successful."));
 });
 
@@ -169,11 +177,18 @@ app.MapPost("/api/auth/refresh-token", async (RefreshRequest request, IUnitOfWor
     var user = await unitOfWork.Users.Query(tracking: true).Include(x => x.Detail).FirstOrDefaultAsync(x => x.RefreshToken == request.RefreshToken);
     if (user is null || user.RefreshTokenExpiresAt <= DateTime.UtcNow || !user.IsActive)
         return Results.Json(ApiResponse<LoginResult>.Error("Refresh token is invalid or expired.", 401), statusCode: 401);
+    var activeBranchId = request.BranchId ?? user.BranchId;
+    if (!string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase) && activeBranchId != user.BranchId)
+        return Results.Json(ApiResponse<LoginResult>.Error("You are not authorized to use the selected branch.", 403), statusCode: 403);
+    var activeBranch = await unitOfWork.Branches.FirstOrDefaultAsync(x => x.Id == activeBranchId && x.IsActive);
+    if (activeBranch is null)
+        return Results.Json(ApiResponse<LoginResult>.Error("Selected branch is not active or could not be found.", 400), statusCode: 400);
     user.RefreshToken = JwtTokenService.CreateRefreshToken();
     user.RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(1);
     await unitOfWork.SaveChangesAsync();
-    return Results.Ok(ApiResponse<LoginResult>.Ok(new LoginResult(tokens.Create(user), user.RefreshToken,
-        user.RefreshTokenExpiresAt.Value, user.Id, Guid.NewGuid().ToString("N"), false)));
+    return Results.Ok(ApiResponse<LoginResult>.Ok(new LoginResult(tokens.Create(user, activeBranch.Id, activeBranch.Code), user.RefreshToken,
+        user.RefreshTokenExpiresAt.Value, user.Id, Guid.NewGuid().ToString("N"), false,
+        activeBranch.Id, activeBranch.Code, activeBranch.Name)));
 });
 
 static async Task<(User? User, IResult? Error)> ResolveAuthenticatedUserAsync(

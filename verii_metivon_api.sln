@@ -1,9 +1,13 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "verii_metivon_api", "verii_metivon_api.csproj", "{C64743D7-0CA4-400E-BA15-258A9320968C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{D8F0AE4F-4636-46DD-885E-7792CA510E4D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "verii_metivon_api.ArchitectureTests", "tests\verii_metivon_api.ArchitectureTests\verii_metivon_api.ArchitectureTests.csproj", "{77604217-A23D-442D-86C9-44F5F806DCA4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -27,8 +31,23 @@ Global
 		{C64743D7-0CA4-400E-BA15-258A9320968C}.Release|x64.Build.0 = Release|Any CPU
 		{C64743D7-0CA4-400E-BA15-258A9320968C}.Release|x86.ActiveCfg = Release|Any CPU
 		{C64743D7-0CA4-400E-BA15-258A9320968C}.Release|x86.Build.0 = Release|Any CPU
+		{77604217-A23D-442D-86C9-44F5F806DCA4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{77604217-A23D-442D-86C9-44F5F806DCA4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{77604217-A23D-442D-86C9-44F5F806DCA4}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{77604217-A23D-442D-86C9-44F5F806DCA4}.Debug|x64.Build.0 = Debug|Any CPU
+		{77604217-A23D-442D-86C9-44F5F806DCA4}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{77604217-A23D-442D-86C9-44F5F806DCA4}.Debug|x86.Build.0 = Debug|Any CPU
+		{77604217-A23D-442D-86C9-44F5F806DCA4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{77604217-A23D-442D-86C9-44F5F806DCA4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{77604217-A23D-442D-86C9-44F5F806DCA4}.Release|x64.ActiveCfg = Release|Any CPU
+		{77604217-A23D-442D-86C9-44F5F806DCA4}.Release|x64.Build.0 = Release|Any CPU
+		{77604217-A23D-442D-86C9-44F5F806DCA4}.Release|x86.ActiveCfg = Release|Any CPU
+		{77604217-A23D-442D-86C9-44F5F806DCA4}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{77604217-A23D-442D-86C9-44F5F806DCA4} = {D8F0AE4F-4636-46DD-885E-7792CA510E4D}
 	EndGlobalSection
 EndGlobal

@@ -1,6 +1,6 @@
 using verii_metivon_api.Core.Domain;
 
-namespace verii_metivon_api.Core.Domain;
+namespace verii_metivon_api.Modules.Organization.Domain.Entities;
 
 public sealed class Branch : Entity
 {

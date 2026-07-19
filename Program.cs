@@ -31,6 +31,7 @@ using verii_metivon_api.Modules.AccessControl;
 using verii_metivon_api.Modules.AccessControl.Authorization;
 using verii_metivon_api.Modules.Organization;
 using System.Security.Claims;
+using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -53,6 +54,7 @@ if (configuredCorsOrigins.Length == 0)
 
 builder.Services.AddDbContext<MetivonDbContext>(options => options.UseSqlServer(connectionString));
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddControllers(options =>
@@ -108,6 +110,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+var supportedCultures = new[] { "ar", "de", "en", "es", "fa", "fr", "it", "ja", "ko", "nl", "pl", "pt", "ru", "tr", "zh" }
+    .Select(x => new CultureInfo(x))
+    .ToArray();
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new Microsoft.AspNetCore.Localization.RequestCulture("tr"),
+    SupportedCultures = supportedCultures,
+    SupportedUICultures = supportedCultures,
+    ApplyCurrentCultureToResponseHeaders = true
+});
 app.UseMiddleware<IisSafeHttpMethodMiddleware>();
 app.UseRouting();
 app.UseCors();

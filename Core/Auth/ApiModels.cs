@@ -9,7 +9,6 @@ public sealed record MyPermissionsResult(long UserId, string RoleTitle, bool IsS
     IReadOnlyList<string> PermissionGroups, IReadOnlyList<string> PermissionCodes);
 public sealed record AppBootstrapUser(long Id, string Email, string Name);
 public sealed record AppBootstrapResult(AppBootstrapUser User, MyPermissionsResult Permissions, object SystemSettings);
-public sealed record BranchItem(long Id, string Code, string Name, bool IsDefault);
 public sealed record DefinitionItem(long Id, string Code, string Name, bool IsDefault);
 public sealed record ManagedDefinitionItem(long Id, string Code, string Name, string? Description, bool IsActive,
     bool IsDefault, int DisplayOrder, int? DueDays, int? DiscountDays, decimal? DiscountRate,

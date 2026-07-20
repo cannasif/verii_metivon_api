@@ -5,6 +5,7 @@ using verii_metivon_api.Core.UnitOfWork;
 using verii_metivon_api.Modules.Inventory.Application.Services;
 using verii_metivon_api.Modules.Inventory.Domain.Entities;
 using verii_metivon_api.Modules.Inventory.Domain.Enums;
+using verii_metivon_api.Modules.Procurement.Application.Services;
 using verii_metivon_api.Modules.Procurement.Domain.Entities;
 using verii_metivon_api.Modules.Procurement.Domain.Enums;
 using verii_metivon_api.Modules.Products.Domain.Enums;
@@ -42,9 +43,10 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
             : r.ReceiptType;
         var purchaseOrders=purchaseOrderIds.Length==0
             ? []
-            : await u.Repository<PurchaseOrder>().Query().Include(x=>x.Lines).Where(x=>purchaseOrderIds.Contains(x.Id)).ToListAsync(ct);
+            : await u.Repository<PurchaseOrder>().Query().Include(x=>x.Lines).Include(x=>x.Currency).Where(x=>purchaseOrderIds.Contains(x.Id)).ToListAsync(ct);
         if(purchaseOrders.Count!=purchaseOrderIds.Length)return ApiResponse<object>.Error("One or more selected purchase orders could not be found.",400);
         if(purchaseOrders.Any(x=>x.BranchId!=r.BranchId||x.SupplierId!=r.SupplierId||x.WarehouseId!=r.WarehouseId))return ApiResponse<object>.Error("All selected purchase orders must belong to the selected branch, supplier and warehouse.",409);
+        if(purchaseOrders.Select(x=>x.CurrencyId).Distinct().Count()>1)return ApiResponse<object>.Error("Purchase orders with different currencies cannot be combined in one goods receipt.",409);
         if(purchaseOrders.Any(x=>x.Status is PurchaseOrderStatus.Cancelled or PurchaseOrderStatus.Received or PurchaseOrderStatus.Invoiced))return ApiResponse<object>.Error("Cancelled, fully received or invoiced purchase orders cannot be received.",409);
         var linkedTradeDossierIds=purchaseOrders.Where(x=>x.TradeDossierId.HasValue).Select(x=>x.TradeDossierId!.Value).Distinct().ToArray();
         if(linkedTradeDossierIds.Length>1)return ApiResponse<object>.Error("Purchase orders linked to different trade dossiers cannot be combined in one goods receipt.",409);
@@ -65,7 +67,7 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
             if(orderLine.ReceivedQuantity+requestedQuantity>maximumQuantity)return ApiResponse<object>.Error("The receipt quantity exceeds the remaining purchase order quantity and its over-delivery tolerance.",409);
         }
         TradeDossier? trade=null;long? forcedTradeStatusId=null;
-        if(effectiveTradeDossierId.HasValue){trade=await u.Repository<TradeDossier>().GetByIdAsync(effectiveTradeDossierId.Value,ct);if(trade is null||trade.Direction!=TradeDirection.Import)return ApiResponse<object>.Error("A valid import dossier is required.",400);if(trade.Status is TradeDossierStatus.Closed or TradeDossierStatus.Cancelled)return ApiResponse<object>.Error("Closed or cancelled trade dossier cannot receive goods.",409);if(trade.BranchId!=r.BranchId||r.SupplierId.HasValue&&trade.BusinessPartnerId!=r.SupplierId.Value)return ApiResponse<object>.Error("Trade dossier branch and supplier must match the goods receipt.",409);var statusCode=trade.BondedWarehouseId.HasValue?"BONDED":"CUSTOMS_HOLD";forcedTradeStatusId=await u.Repository<InventoryStatus>().Query().Where(x=>x.Code==statusCode&&x.IsActive).Select(x=>(long?)x.Id).FirstOrDefaultAsync(ct);}
+        if(effectiveTradeDossierId.HasValue){trade=await u.Repository<TradeDossier>().GetByIdAsync(effectiveTradeDossierId.Value,ct);if(trade is null||trade.Direction!=TradeDirection.Import)return ApiResponse<object>.Error("A valid import dossier is required.",400);if(trade.Status is TradeDossierStatus.Closed or TradeDossierStatus.Cancelled)return ApiResponse<object>.Error("Closed or cancelled trade dossier cannot receive goods.",409);if(trade.BranchId!=r.BranchId||r.SupplierId.HasValue&&trade.BusinessPartnerId!=r.SupplierId.Value)return ApiResponse<object>.Error("Trade dossier branch and supplier must match the goods receipt.",409);if(purchaseOrders.Count>0&&purchaseOrders[0].CurrencyId!=trade.CurrencyId)return ApiResponse<object>.Error("The purchase order currency must match the linked trade dossier currency.",409);var statusCode=trade.BondedWarehouseId.HasValue?"BONDED":"CUSTOMS_HOLD";forcedTradeStatusId=await u.Repository<InventoryStatus>().Query().Where(x=>x.Code==statusCode&&x.IsActive).Select(x=>(long?)x.Id).FirstOrDefaultAsync(ct);}
         if(settings.RequireSupplierDeliveryNoteNumber&&string.IsNullOrWhiteSpace(r.SupplierDeliveryNoteNumber))return ApiResponse<object>.Error("Supplier delivery note number is required by receiving parameters.",400);
         var requestSerials=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach(var line in r.Lines)
@@ -107,7 +109,13 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
             var serials=(l.SerialNumbers??Array.Empty<string>()).Where(s=>!string.IsNullOrWhiteSpace(s)).Select(s=>s.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             if(tracking==InventoryTrackingType.Serial&&(l.AcceptedQuantity!=decimal.Truncate(l.AcceptedQuantity)||serials.Length!=(int)l.AcceptedQuantity))return ApiResponse<object>.Error("For serial-tracked products, accepted quantity must be an integer and serial count must match accepted quantity.",400);
             if(tracking!=InventoryTrackingType.Serial&&serials.Length>0)return ApiResponse<object>.Error("Serial numbers can only be entered for serial-tracked products.",400);
-            e.Lines.Add(new GoodsReceiptLine{LineNumber=++n,PurchaseOrderLineId=l.PurchaseOrderLineId,ProductId=l.ProductId,UnitId=l.UnitId,StorageLocationId=l.StorageLocationId,InventoryStatusId=forcedTradeStatusId??l.InventoryStatusId,ExpectedQuantity=l.ExpectedQuantity,ReceivedQuantity=l.ReceivedQuantity,AcceptedQuantity=l.AcceptedQuantity,RejectedQuantity=l.RejectedQuantity,UnitCost=l.UnitCost,LotNumber=l.LotNumber?.Trim(),ManufactureDate=l.ManufactureDate,ExpiryDate=l.ExpiryDate,Notes=l.Notes,Serials=serials.Select(s=>new GoodsReceiptSerial{SerialNumber=s}).ToList()});
+            var documentUnitCost=l.UnitCost;
+            if(l.PurchaseOrderLineId.HasValue)
+            {
+                var orderLine=purchaseOrderLines[l.PurchaseOrderLineId.Value];
+                documentUnitCost=PurchaseOrderAmountCalculator.GrossUnitCost(orderLine.OrderedQuantity,orderLine.LineTotal);
+            }
+            e.Lines.Add(new GoodsReceiptLine{LineNumber=++n,PurchaseOrderLineId=l.PurchaseOrderLineId,ProductId=l.ProductId,UnitId=l.UnitId,StorageLocationId=l.StorageLocationId,InventoryStatusId=forcedTradeStatusId??l.InventoryStatusId,ExpectedQuantity=l.ExpectedQuantity,ReceivedQuantity=l.ReceivedQuantity,AcceptedQuantity=l.AcceptedQuantity,RejectedQuantity=l.RejectedQuantity,UnitCost=documentUnitCost,LotNumber=l.LotNumber?.Trim(),ManufactureDate=l.ManufactureDate,ExpiryDate=l.ExpiryDate,Notes=l.Notes,Serials=serials.Select(s=>new GoodsReceiptSerial{SerialNumber=s}).ToList()});
         }
         try
         {
@@ -173,7 +181,13 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
                     poLine.ReceivedQuantity=newTotal;var minimumComplete=poLine.OrderedQuantity*(1-settings.UnderDeliveryTolerancePercent/100m);poLine.Status=newTotal>=minimumComplete?PurchaseLineStatus.Received:PurchaseLineStatus.PartiallyReceived;poLine.IsClosed=poLine.Status==PurchaseLineStatus.Received;
                 }
             }
-            posting=await inventory.PostAsync(new($"GOODS-RECEIPT:{receipt.Id}","GoodsReceipt",receipt.Id,receipt.ReceiptNumber,receipt.ReceiptDate.ToDateTime(TimeOnly.MinValue),InventoryMovementType.PurchaseReceipt,InventoryMovementDirection.Receipt,settings.InventoryCurrencyCode,postLines),t);
+            var receiptOrderLineIds=receipt.Lines.Where(line=>line.PurchaseOrderLineId.HasValue).Select(line=>line.PurchaseOrderLineId!.Value).Distinct().ToArray();
+            var receiptCurrencyCodes=await u.Repository<PurchaseOrderLine>().Query()
+                .Where(x=>receiptOrderLineIds.Contains(x.Id))
+                .Select(x=>x.PurchaseOrder.Currency.IsoCode).Distinct().ToListAsync(t);
+            if(receiptCurrencyCodes.Count>1)throw new InvalidOperationException("A goods receipt cannot post inventory in multiple document currencies.");
+            var postingCurrencyCode=receiptCurrencyCodes.SingleOrDefault()??settings.InventoryCurrencyCode;
+            posting=await inventory.PostAsync(new($"GOODS-RECEIPT:{receipt.Id}","GoodsReceipt",receipt.Id,receipt.ReceiptNumber,receipt.ReceiptDate.ToDateTime(TimeOnly.MinValue),InventoryMovementType.PurchaseReceipt,InventoryMovementDirection.Receipt,postingCurrencyCode,postLines),t);
             if(!posting.Success)throw new InvalidOperationException(posting.Message);if(posting.Data!.AlreadyPosted){receipt.InventoryPostingId=posting.Data.PostingId;return;}receipt.InventoryPostingId=posting.Data.PostingId;receipt.Status=settings.RequireQualityInspection?GoodsReceiptStatus.QualityInspection:GoodsReceiptStatus.Posted;receipt.PostedAt=DateTime.UtcNow;
             foreach(var orderId in affectedOrderIds){var order=await u.Repository<PurchaseOrder>().Query(true).Include(x=>x.Lines).FirstAsync(x=>x.Id==orderId,t);order.Status=order.Lines.All(x=>x.Status==PurchaseLineStatus.Received)?PurchaseOrderStatus.Received:PurchaseOrderStatus.PartiallyReceived;}
             await SyncImportDossierAsync(receipt,t);
@@ -184,10 +198,16 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
     {
         if(!receipt.TradeDossierId.HasValue)return;
         var trade=await u.Repository<TradeDossier>().GetByIdAsync(receipt.TradeDossierId.Value,ct)??throw new InvalidOperationException("Linked import trade dossier could not be found.");
+        var receiptOrderLineIds=receipt.Lines.Where(line=>line.PurchaseOrderLineId.HasValue).Select(line=>line.PurchaseOrderLineId!.Value).Distinct().ToArray();
+        var sourceOrder=await u.Repository<PurchaseOrderLine>().Query()
+            .Where(x=>receiptOrderLineIds.Contains(x.Id))
+            .Select(x=>new{x.PurchaseOrder.CurrencyId,CurrencyCode=x.PurchaseOrder.Currency.IsoCode,x.PurchaseOrder.ExchangeRate})
+            .FirstOrDefaultAsync(ct);
+        var headerRate=sourceOrder?.ExchangeRate>0?sourceOrder.ExchangeRate:1m;
         var dossier=await u.Repository<ImportDossier>().Query(true).Include(x=>x.Lines).FirstOrDefaultAsync(x=>x.TradeDossierId==trade.Id,ct);
         if(dossier is null)
         {
-            dossier=new ImportDossier{TradeDossierId=trade.Id,DossierNumber=trade.DossierNumber,Status=ImportDossierStatus.ReceivedProvisionally,BranchId=trade.BranchId,SupplierId=trade.BusinessPartnerId,CurrencyId=trade.CurrencyId,CurrencyCode=trade.CurrencyCode,IncotermCode=trade.IncotermCode,OpenDate=trade.OpenDate,EstimatedArrivalDate=trade.EstimatedArrivalDate,ActualArrivalDate=receipt.ReceiptDate,TransactionExchangeRate=1,CustomsExchangeRate=1,CostingExchangeRate=1,Notes="Mal kabul sırasında otomatik eşlendi."};
+            dossier=new ImportDossier{TradeDossierId=trade.Id,DossierNumber=trade.DossierNumber,Status=ImportDossierStatus.ReceivedProvisionally,BranchId=trade.BranchId,SupplierId=trade.BusinessPartnerId,CurrencyId=sourceOrder?.CurrencyId??trade.CurrencyId,CurrencyCode=sourceOrder?.CurrencyCode??trade.CurrencyCode,IncotermCode=trade.IncotermCode,OpenDate=trade.OpenDate,EstimatedArrivalDate=trade.EstimatedArrivalDate,ActualArrivalDate=receipt.ReceiptDate,TransactionExchangeRate=headerRate,CustomsExchangeRate=headerRate,CostingExchangeRate=headerRate,Notes="Mal kabul sırasında otomatik eşlendi."};
             await u.Repository<ImportDossier>().AddAsync(dossier,ct);await u.SaveChangesAsync(ct);
         }
         else if(!dossier.ActualArrivalDate.HasValue||receipt.ReceiptDate<dossier.ActualArrivalDate.Value)dossier.ActualArrivalDate=receipt.ReceiptDate;
@@ -196,8 +216,12 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
         foreach(var line in receipt.Lines.Where(x=>!dossier.Lines.Any(y=>y.GoodsReceiptLineId==x.Id)))
         {
             var product=await u.Repository<verii_metivon_api.Modules.Products.Domain.Entities.Product>().GetByIdAsync(line.ProductId,ct)??throw new InvalidOperationException("Product not found while matching the import dossier.");
+            var lineRate=line.PurchaseOrderLineId.HasValue
+                ? await u.Repository<PurchaseOrderLine>().Query().Where(x=>x.Id==line.PurchaseOrderLineId.Value).Select(x=>x.PurchaseOrder.ExchangeRate).FirstAsync(ct)
+                : dossier.CostingExchangeRate;
+            if(lineRate<=0)lineRate=1;
             var quantity=line.AcceptedQuantity;var amount=quantity*line.UnitCost;
-            dossier.Lines.Add(new ImportDossierLine{LineNumber=++nextLine,PurchaseOrderLineId=line.PurchaseOrderLineId,GoodsReceiptLineId=line.Id,ProductId=line.ProductId,Quantity=quantity,NetWeight=(product.NetWeight??0)*quantity,GrossWeight=(product.GrossWeight??product.NetWeight??0)*quantity,Volume=(product.Volume??0)*quantity,ForeignUnitPrice=line.UnitCost,ForeignGoodsAmount=amount,TransactionExchangeRate=dossier.TransactionExchangeRate,CustomsExchangeRate=dossier.CustomsExchangeRate,CostingExchangeRate=dossier.CostingExchangeRate,GoodsAmountLocal=amount*dossier.CostingExchangeRate,FinalUnitCostLocal=line.UnitCost,ReceiptTransactionId=transactionByLine.GetValueOrDefault(line.Id)});
+            dossier.Lines.Add(new ImportDossierLine{LineNumber=++nextLine,PurchaseOrderLineId=line.PurchaseOrderLineId,GoodsReceiptLineId=line.Id,ProductId=line.ProductId,Quantity=quantity,NetWeight=(product.NetWeight??0)*quantity,GrossWeight=(product.GrossWeight??product.NetWeight??0)*quantity,Volume=(product.Volume??0)*quantity,ForeignUnitPrice=line.UnitCost,ForeignGoodsAmount=amount,TransactionExchangeRate=lineRate,CustomsExchangeRate=dossier.CustomsExchangeRate,CostingExchangeRate=lineRate,GoodsAmountLocal=amount*lineRate,FinalUnitCostLocal=line.UnitCost*lineRate,ReceiptTransactionId=transactionByLine.GetValueOrDefault(line.Id)});
         }
     }
 }

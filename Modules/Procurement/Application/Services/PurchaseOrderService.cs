@@ -3,6 +3,7 @@ using verii_metivon_api.Core.Auth;
 using verii_metivon_api.Core.Paging;
 using verii_metivon_api.Core.Persistence;
 using verii_metivon_api.Core.UnitOfWork;
+using verii_metivon_api.Modules.GeneralSettings;
 using verii_metivon_api.Modules.Procurement.Application.Parameters;
 using verii_metivon_api.Modules.Procurement.Domain.Entities;
 using verii_metivon_api.Modules.Procurement.Domain.Enums;
@@ -25,7 +26,12 @@ public sealed class PurchaseOrderService(IUnitOfWork u,IProcurementParameterServ
   if(!await db.Branches.AsNoTracking().AnyAsync(x=>x.Id==r.BranchId&&x.IsActive,ct))return ApiResponse<object>.Error("The active branch could not be found.",400);
   if(!await db.Warehouses.AsNoTracking().AnyAsync(x=>x.Id==r.WarehouseId&&x.BranchId==r.BranchId&&x.IsActive,ct))return ApiResponse<object>.Error("The delivery warehouse must be active and belong to the selected branch.",400);
   if(!await db.BusinessPartners.AsNoTracking().AnyAsync(x=>x.Id==r.SupplierId&&x.BranchId==r.BranchId&&(!p.RequireActiveSupplier||x.IsActive),ct))return ApiResponse<object>.Error("The supplier must belong to the active branch and satisfy the procurement parameters.",400);
-  if(!await db.Currencies.AsNoTracking().AnyAsync(x=>x.Id==r.CurrencyId&&x.IsActive,ct))return ApiResponse<object>.Error("An active currency is required.",400);
+  var currency=await db.Currencies.AsNoTracking().FirstOrDefaultAsync(x=>x.Id==r.CurrencyId&&x.IsActive,ct);
+  if(currency is null)return ApiResponse<object>.Error("An active currency is required.",400);
+  var baseCurrencyId=await db.Set<GeneralSetting>().AsNoTracking().Where(x=>x.ScopeKey=="GLOBAL").Select(x=>(long?)x.DefaultCurrencyId).FirstOrDefaultAsync(ct)
+      ??await db.Currencies.AsNoTracking().Where(x=>x.IsActive&&x.IsDefault).Select(x=>(long?)x.Id).FirstOrDefaultAsync(ct);
+  var effectiveExchangeRate=baseCurrencyId==currency.Id?1m:r.ExchangeRate;
+  if(effectiveExchangeRate<=0)return ApiResponse<object>.Error("A positive exchange rate is required.",400);
   if(!await db.PaymentTerms.AsNoTracking().AnyAsync(x=>x.Id==r.PaymentTermId&&x.IsActive,ct))return ApiResponse<object>.Error("An active payment term is required.",400);
   var productIds=r.Lines.Select(x=>x.ProductId).Distinct().ToArray();
   if(await db.Products.AsNoTracking().CountAsync(x=>productIds.Contains(x.Id)&&x.IsActive,ct)!=productIds.Length)return ApiResponse<object>.Error("One or more purchase order products are inactive or could not be found.",400);
@@ -34,7 +40,7 @@ public sealed class PurchaseOrderService(IUnitOfWork u,IProcurementParameterServ
   var locationIds=r.Lines.Where(x=>x.StorageLocationId.HasValue).Select(x=>x.StorageLocationId!.Value).Distinct().ToArray();
   if(locationIds.Length>0&&await db.StorageLocations.AsNoTracking().CountAsync(x=>locationIds.Contains(x.Id)&&x.WarehouseId==r.WarehouseId&&x.IsActive&&!x.IsBlocked,ct)!=locationIds.Length)return ApiResponse<object>.Error("Optional stock locations must be active, unblocked and belong to the delivery warehouse.",400);
   TradeDossier? trade=null;
-  if(r.TradeDossierId.HasValue){trade=await db.TradeDossiers.AsNoTracking().FirstOrDefaultAsync(x=>x.Id==r.TradeDossierId.Value,ct);if(trade is null||trade.Direction!=TradeDirection.Import)return ApiResponse<object>.Error("A valid import trade dossier is required.",400);if(trade.Status is TradeDossierStatus.Closed or TradeDossierStatus.Cancelled)return ApiResponse<object>.Error("Closed or cancelled trade dossier cannot be linked.",409);if(trade.BranchId!=r.BranchId||trade.BusinessPartnerId!=r.SupplierId)return ApiResponse<object>.Error("Trade dossier branch and supplier must match the purchase order.",409);}
+  if(r.TradeDossierId.HasValue){trade=await db.TradeDossiers.AsNoTracking().FirstOrDefaultAsync(x=>x.Id==r.TradeDossierId.Value,ct);if(trade is null||trade.Direction!=TradeDirection.Import)return ApiResponse<object>.Error("A valid import trade dossier is required.",400);if(trade.Status is TradeDossierStatus.Closed or TradeDossierStatus.Cancelled)return ApiResponse<object>.Error("Closed or cancelled trade dossier cannot be linked.",409);if(trade.BranchId!=r.BranchId||trade.BusinessPartnerId!=r.SupplierId)return ApiResponse<object>.Error("Trade dossier branch and supplier must match the purchase order.",409);if(trade.CurrencyId!=r.CurrencyId)return ApiResponse<object>.Error("Trade dossier and purchase order currencies must match.",409);}
   var requestedDelivery=r.RequestedDeliveryDate??r.OrderDate.AddDays(p.DefaultLeadTimeDays);
   if(p.RequireRequestedDeliveryDate&&!r.RequestedDeliveryDate.HasValue&&p.DefaultLeadTimeDays==0)return ApiResponse<object>.Error("Requested delivery date is required.",400);
   ReservedNumber? reserved=null;string number=string.Empty;
@@ -58,7 +64,7 @@ public sealed class PurchaseOrderService(IUnitOfWork u,IProcurementParameterServ
    }
   }
   catch(InvalidOperationException exception){return ApiResponse<object>.Error(exception.Message,400);}
-  var e=new PurchaseOrder{OrderNumber=number,OrderType=r.OrderType,Status=p.AutoApproveOnCreate?PurchaseOrderStatus.Approved:PurchaseOrderStatus.Draft,BranchId=r.BranchId,SupplierId=r.SupplierId,TradeDossierId=r.TradeDossierId,CurrencyId=r.CurrencyId,PaymentTermId=r.PaymentTermId,WarehouseId=r.WarehouseId,OrderDate=r.OrderDate,RequestedDeliveryDate=requestedDelivery,SupplierReference=r.SupplierReference?.Trim(),BuyerNote=r.BuyerNote?.Trim(),ExchangeRate=r.ExchangeRate};
+  var e=new PurchaseOrder{OrderNumber=number,OrderType=r.OrderType,Status=p.AutoApproveOnCreate?PurchaseOrderStatus.Approved:PurchaseOrderStatus.Draft,BranchId=r.BranchId,SupplierId=r.SupplierId,TradeDossierId=r.TradeDossierId,CurrencyId=r.CurrencyId,PaymentTermId=r.PaymentTermId,WarehouseId=r.WarehouseId,OrderDate=r.OrderDate,RequestedDeliveryDate=requestedDelivery,SupplierReference=r.SupplierReference?.Trim(),BuyerNote=r.BuyerNote?.Trim(),ExchangeRate=effectiveExchangeRate};
   var n=0;
   foreach(var l in r.Lines)
   {

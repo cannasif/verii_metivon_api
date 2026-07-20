@@ -210,7 +210,17 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
             dossier=new ImportDossier{TradeDossierId=trade.Id,DossierNumber=trade.DossierNumber,Status=ImportDossierStatus.ReceivedProvisionally,BranchId=trade.BranchId,SupplierId=trade.BusinessPartnerId,CurrencyId=sourceOrder?.CurrencyId??trade.CurrencyId,CurrencyCode=sourceOrder?.CurrencyCode??trade.CurrencyCode,IncotermCode=trade.IncotermCode,OpenDate=trade.OpenDate,EstimatedArrivalDate=trade.EstimatedArrivalDate,ActualArrivalDate=receipt.ReceiptDate,TransactionExchangeRate=headerRate,CustomsExchangeRate=headerRate,CostingExchangeRate=headerRate,Notes="Mal kabul sırasında otomatik eşlendi."};
             await u.Repository<ImportDossier>().AddAsync(dossier,ct);await u.SaveChangesAsync(ct);
         }
-        else if(!dossier.ActualArrivalDate.HasValue||receipt.ReceiptDate<dossier.ActualArrivalDate.Value)dossier.ActualArrivalDate=receipt.ReceiptDate;
+        else
+        {
+            if(sourceOrder is not null&&dossier.CurrencyId!=sourceOrder.CurrencyId)throw new InvalidOperationException("Import dossier and purchase order currencies must match.");
+            if(!dossier.ActualArrivalDate.HasValue||receipt.ReceiptDate<dossier.ActualArrivalDate.Value)dossier.ActualArrivalDate=receipt.ReceiptDate;
+            if(dossier.Lines.Count==0)
+            {
+                dossier.TransactionExchangeRate=headerRate;
+                dossier.CostingExchangeRate=headerRate;
+                if(!dossier.CustomsDeclarationDate.HasValue)dossier.CustomsExchangeRate=headerRate;
+            }
+        }
         var transactionByLine=await u.Repository<InventoryTransaction>().Query().Where(x=>x.DocumentType=="GoodsReceipt"&&x.DocumentId==receipt.Id&&x.DocumentLineId.HasValue).GroupBy(x=>x.DocumentLineId!.Value).ToDictionaryAsync(x=>x.Key,x=>(long?)x.Min(v=>v.Id),ct);
         var nextLine=dossier.Lines.Count==0?0:dossier.Lines.Max(x=>x.LineNumber);
         foreach(var line in receipt.Lines.Where(x=>!dossier.Lines.Any(y=>y.GoodsReceiptLineId==x.Id)))

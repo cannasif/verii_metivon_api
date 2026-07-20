@@ -58,6 +58,33 @@ public sealed class LandedCostsController(ILandedCostService service, MetivonDbC
         return Ok(ApiResponse<PagedResult<LandedCostTypeRow>>.Ok(new(rows,query.NormalizedPageNumber,query.NormalizedPageSize,total)));
     }
     [HttpPost("cost-types")] public async Task<IActionResult> Type(SaveLandedCostTypeRequest request,CancellationToken ct){var r=await service.SaveTypeAsync(request,ct);return StatusCode(r.StatusCode,r);}
+    [HttpGet("cost-types/{id:long}")]
+    public async Task<IActionResult> CostType(long id,CancellationToken ct)
+    {
+        var row=await db.LandedCostTypes.AsNoTracking().Where(x=>x.Id==id).Select(x=>new{x.Id,x.Code,x.Name,x.Description,DefaultAllocationMethod=(int)x.DefaultAllocationMethod,x.IncludeInCustomsValue,x.CapitalizeToInventory,x.ClearingAccountId,x.VarianceAccountId,x.IsActive,x.IsDefault,x.DisplayOrder}).FirstOrDefaultAsync(ct);
+        return row is null?NotFound(ApiResponse<object>.Error("Cost type not found.",404)):Ok(ApiResponse<object>.Ok(row));
+    }
+    [HttpPut("cost-types/{id:long}")]
+    public async Task<IActionResult> UpdateCostType(long id,SaveLandedCostTypeRequest request,CancellationToken ct)
+    {
+        var entity=await db.LandedCostTypes.FirstOrDefaultAsync(x=>x.Id==id,ct);
+        if(entity is null)return NotFound(ApiResponse<object>.Error("Cost type not found.",404));
+        var code=request.Code.Trim().ToUpperInvariant();
+        if(string.IsNullOrWhiteSpace(code)||string.IsNullOrWhiteSpace(request.Name))return BadRequest(ApiResponse<object>.Error("Code and name are required.",400));
+        if(await db.LandedCostTypes.AnyAsync(x=>x.Id!=id&&x.Code==code,ct))return Conflict(ApiResponse<object>.Error("Cost type code exists.",409));
+        if(request.IsDefault){var defaults=await db.LandedCostTypes.Where(x=>x.Id!=id&&x.IsDefault).ToListAsync(ct);defaults.ForEach(x=>x.IsDefault=false);}
+        entity.Code=code;entity.Name=request.Name.Trim();entity.Description=request.Description?.Trim();entity.DefaultAllocationMethod=request.DefaultAllocationMethod;entity.IncludeInCustomsValue=request.IncludeInCustomsValue;entity.CapitalizeToInventory=request.CapitalizeToInventory;entity.ClearingAccountId=request.ClearingAccountId;entity.VarianceAccountId=request.VarianceAccountId;entity.IsActive=request.IsActive;entity.IsDefault=request.IsDefault;entity.DisplayOrder=request.DisplayOrder;entity.UpdatedAt=DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);return Ok(ApiResponse<object>.Ok(new{entity.Id}));
+    }
+    [HttpDelete("cost-types/{id:long}")]
+    public async Task<IActionResult> DeleteCostType(long id,CancellationToken ct)
+    {
+        var entity=await db.LandedCostTypes.FirstOrDefaultAsync(x=>x.Id==id,ct);
+        if(entity is null)return NotFound(ApiResponse<object>.Error("Cost type not found.",404));
+        if(entity.IsDefault)return Conflict(ApiResponse<object>.Error("Default cost type cannot be deleted.",409));
+        if(await db.ImportDossierCosts.AnyAsync(x=>x.LandedCostTypeId==id,ct))return Conflict(ApiResponse<object>.Error("Cost type is in use and cannot be deleted.",409));
+        db.LandedCostTypes.Remove(entity);await db.SaveChangesAsync(ct);return Ok(ApiResponse<object>.Ok(new{id}));
+    }
 }
 
 public sealed class LandedCostTypeQuery : PagedQuery { }

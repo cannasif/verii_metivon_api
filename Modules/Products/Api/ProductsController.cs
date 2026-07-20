@@ -14,6 +14,9 @@ public sealed class ProductsController(IProductService service) : ControllerBase
     {
         var response = await service.CreateAsync(request, Culture, ct); return StatusCode(response.StatusCode, response);
     }
+    [HttpGet("{id:long}")] public async Task<IActionResult> Get(long id,CancellationToken ct){var response=await service.GetByIdAsync(id,ct);return StatusCode(response.StatusCode,response);}
+    [HttpPut("{id:long}")] public async Task<IActionResult> Update(long id,SaveProductRequest request,CancellationToken ct){var response=await service.UpdateAsync(id,request,Culture,ct);return StatusCode(response.StatusCode,response);}
+    [HttpDelete("{id:long}")] public async Task<IActionResult> Delete(long id,CancellationToken ct){var response=await service.DeleteAsync(id,ct);return StatusCode(response.StatusCode,response);}
     [HttpGet("definition-management/{kind}")] public async Task<IActionResult> GetManagedDefinitions(string kind,[FromQuery] ProductDefinitionListQuery query,CancellationToken ct)=>Ok(await service.GetManagedDefinitionsAsync(kind,query,Culture,ct));
     [HttpPost("definition-management/{kind}")] public async Task<IActionResult> CreateDefinition(string kind,SaveProductDefinitionRequest request,CancellationToken ct){var response=await service.CreateDefinitionAsync(kind,request,Culture,ct);return StatusCode(response.StatusCode,response);}
     [HttpPut("definition-management/{kind}/{id:long}")] public async Task<IActionResult> UpdateDefinition(string kind,long id,SaveProductDefinitionRequest request,CancellationToken ct){var response=await service.UpdateDefinitionAsync(kind,id,request,Culture,ct);return StatusCode(response.StatusCode,response);}

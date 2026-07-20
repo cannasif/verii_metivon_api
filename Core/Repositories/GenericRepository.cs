@@ -65,6 +65,9 @@ public sealed class GenericRepository<T>(MetivonDbContext context, IHttpContextA
         _dbSet.UpdateRange(entities);
     }
 
+    public void Remove(T entity) => _dbSet.Remove(entity);
+    public void RemoveRange(IEnumerable<T> entities) => _dbSet.RemoveRange(entities);
+
     public async Task<bool> SoftDeleteAsync(long id, CancellationToken cancellationToken = default)
     {
         var entity = await GetByIdForUpdateAsync(id, cancellationToken);

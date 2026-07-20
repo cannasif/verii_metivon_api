@@ -15,6 +15,8 @@ public interface IGenericRepository<T> where T : Entity
     Task AddRangeAsync(IEnumerable<T> entities, CancellationToken cancellationToken = default);
     T Update(T entity);
     void UpdateRange(IEnumerable<T> entities);
+    void Remove(T entity);
+    void RemoveRange(IEnumerable<T> entities);
     Task<bool> SoftDeleteAsync(long id, CancellationToken cancellationToken = default);
     Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default);
     Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null, CancellationToken cancellationToken = default);

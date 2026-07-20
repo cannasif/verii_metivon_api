@@ -33,6 +33,9 @@ public interface IProductService
     Task<ApiResponse<PagedResult<ProductListItem>>> GetPagedAsync(ProductListQuery query, string? culture, CancellationToken ct);
     Task<ApiResponse<ProductDefinitions>> GetDefinitionsAsync(string? culture, CancellationToken ct);
     Task<ApiResponse<object>> CreateAsync(SaveProductRequest request, string? culture, CancellationToken ct);
+    Task<ApiResponse<SaveProductRequest>> GetByIdAsync(long id, CancellationToken ct);
+    Task<ApiResponse<object>> UpdateAsync(long id, SaveProductRequest request, string? culture, CancellationToken ct);
+    Task<ApiResponse<object>> DeleteAsync(long id, CancellationToken ct);
     Task<ApiResponse<PagedResult<ManagedProductDefinition>>> GetManagedDefinitionsAsync(string kind, ProductDefinitionListQuery query, string? culture, CancellationToken ct);
     Task<ApiResponse<object>> CreateDefinitionAsync(string kind, SaveProductDefinitionRequest request, string? culture, CancellationToken ct);
     Task<ApiResponse<object>> UpdateDefinitionAsync(string kind, long id, SaveProductDefinitionRequest request, string? culture, CancellationToken ct);

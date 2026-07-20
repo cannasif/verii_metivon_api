@@ -14,6 +14,7 @@ using verii_metivon_api.Modules.Receiving.Domain.Enums;
 using verii_metivon_api.Modules.Traceability.Application.Parameters;
 using verii_metivon_api.Modules.NumberSeries.Application;
 using verii_metivon_api.Modules.TradeOperations.Domain.Entities;
+using verii_metivon_api.Modules.LandedCosts.Domain.Entities;
 
 namespace verii_metivon_api.Modules.Receiving.Application.Services;
 
@@ -34,6 +35,7 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
     {
         if(r.Lines.Count==0)return ApiResponse<object>.Error("At least one receipt line is required.",400);
         var settings=await parameters.ResolveSettingsAsync(r.BranchId,r.WarehouseId,ct);
+        var trace=await traceability.ResolveSettingsAsync(r.BranchId,r.WarehouseId,ct);
         var purchaseOrderIds=r.PurchaseOrderIds.Where(x=>x>0).Distinct().ToArray();
         var receiptType=r.ReceiptType==GoodsReceiptType.PurchaseOrder&&purchaseOrderIds.Length==0
             ? GoodsReceiptType.FreeReceipt
@@ -63,7 +65,7 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
             if(orderLine.ReceivedQuantity+requestedQuantity>maximumQuantity)return ApiResponse<object>.Error("The receipt quantity exceeds the remaining purchase order quantity and its over-delivery tolerance.",409);
         }
         TradeDossier? trade=null;long? forcedTradeStatusId=null;
-        if(effectiveTradeDossierId.HasValue){trade=await u.Repository<TradeDossier>().GetByIdAsync(effectiveTradeDossierId.Value,ct);if(trade is null||trade.Direction!=TradeDirection.Import)return ApiResponse<object>.Error("A valid import dossier is required.",400);if(trade.Status is TradeDossierStatus.Closed or TradeDossierStatus.Cancelled)return ApiResponse<object>.Error("Closed or cancelled trade dossier cannot receive goods.",409);if(trade.BranchId!=r.BranchId||r.SupplierId.HasValue&&trade.BusinessPartnerId!=r.SupplierId.Value)return ApiResponse<object>.Error("Trade dossier branch and supplier must match the goods receipt.",409);var statusCode=trade.BondedWarehouseId.HasValue?"BONDED":"CUSTOMS_HOLD";forcedTradeStatusId=await u.Repository<InventoryStatus>().Query().Where(x=>x.Code==statusCode&&x.IsActive).Select(x=>(long?)x.Id).FirstOrDefaultAsync(ct);if(!forcedTradeStatusId.HasValue)return ApiResponse<object>.Error($"Required inventory status {statusCode} is missing.",409);}
+        if(effectiveTradeDossierId.HasValue){trade=await u.Repository<TradeDossier>().GetByIdAsync(effectiveTradeDossierId.Value,ct);if(trade is null||trade.Direction!=TradeDirection.Import)return ApiResponse<object>.Error("A valid import dossier is required.",400);if(trade.Status is TradeDossierStatus.Closed or TradeDossierStatus.Cancelled)return ApiResponse<object>.Error("Closed or cancelled trade dossier cannot receive goods.",409);if(trade.BranchId!=r.BranchId||r.SupplierId.HasValue&&trade.BusinessPartnerId!=r.SupplierId.Value)return ApiResponse<object>.Error("Trade dossier branch and supplier must match the goods receipt.",409);var statusCode=trade.BondedWarehouseId.HasValue?"BONDED":"CUSTOMS_HOLD";forcedTradeStatusId=await u.Repository<InventoryStatus>().Query().Where(x=>x.Code==statusCode&&x.IsActive).Select(x=>(long?)x.Id).FirstOrDefaultAsync(ct);}
         if(settings.RequireSupplierDeliveryNoteNumber&&string.IsNullOrWhiteSpace(r.SupplierDeliveryNoteNumber))return ApiResponse<object>.Error("Supplier delivery note number is required by receiving parameters.",400);
         var requestSerials=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach(var line in r.Lines)
@@ -116,19 +118,26 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
                 if(trade is not null){await u.Repository<TradeDocumentLink>().AddAsync(new(){TradeDossierId=trade.Id,LinkType=TradeLinkType.GoodsReceipt,SourceId=e.Id,ReferenceNumber=e.ReceiptNumber},t);foreach(var line in e.Lines)await u.Repository<TradeDocumentLink>().AddAsync(new(){TradeDossierId=trade.Id,LinkType=TradeLinkType.GoodsReceipt,SourceId=e.Id,SourceLineId=line.Id,LinkedQuantity=line.AcceptedQuantity,ReferenceNumber=e.ReceiptNumber},t);}
                 await u.SaveChangesAsync(t);
                 if(reserved is not null)await numberSeries.MarkUsedAsync(reserved.UsageId,e.Id,t);
+                await PostReceiptAsync(e,settings,trace,t);
             },ct);
         }
-        catch(DbUpdateException){return ApiResponse<object>.Error("The goods receipt could not be saved because another transaction used the same number or relation. Refresh and try again.",409);}
-        return ApiResponse<object>.Ok(new{e.Id,e.ReceiptNumber,e.TradeDossierId,PurchaseOrderIds=purchaseOrderIds,NumberSeriesUsageId=reserved?.UsageId});
+        catch(DbUpdateException){return ApiResponse<object>.Error("The goods receipt and its inventory movement could not be saved because another transaction used the same number or relation. Refresh and try again.",409);}
+        catch(InvalidOperationException exception){return ApiResponse<object>.Error(exception.Message,400);}
+        return ApiResponse<object>.Ok(new{e.Id,e.ReceiptNumber,e.TradeDossierId,PurchaseOrderIds=purchaseOrderIds,e.InventoryPostingId,e.Status,NumberSeriesUsageId=reserved?.UsageId});
     }
 
     public async Task<ApiResponse<object>>PostAsync(long id,CancellationToken ct)
     {
         var receipt=await u.Repository<GoodsReceipt>().Query(true).Include(x=>x.Lines).ThenInclude(x=>x.Serials).FirstOrDefaultAsync(x=>x.Id==id,ct);
         if(receipt is null)return ApiResponse<object>.Error("Goods receipt not found.",404);if(receipt.Status!=GoodsReceiptStatus.Draft&&receipt.Status!=GoodsReceiptStatus.Registered)return ApiResponse<object>.Error("Receipt is not postable.",409);
-        var settings=await parameters.ResolveSettingsAsync(receipt.BranchId,receipt.WarehouseId,ct);var trace=await traceability.ResolveSettingsAsync(receipt.BranchId,receipt.WarehouseId,ct);ApiResponse<PostInventoryResult>? posting=null;
-        await u.ExecuteInTransactionAsync(async t=>
-        {
+        var settings=await parameters.ResolveSettingsAsync(receipt.BranchId,receipt.WarehouseId,ct);var trace=await traceability.ResolveSettingsAsync(receipt.BranchId,receipt.WarehouseId,ct);
+        await u.ExecuteInTransactionAsync(t=>PostReceiptAsync(receipt,settings,trace,t),ct);
+        return ApiResponse<object>.Ok(new{receipt.Id,receipt.InventoryPostingId,receipt.Status,LabelsReady=settings.AutoCreateLabels&&trace.AutoCreateLabelsAfterReceipt,LabelCopies=trace.DefaultLabelCopies});
+    }
+
+    private async Task PostReceiptAsync(GoodsReceipt receipt,ReceivingParameterSettings settings,InventoryTraceabilityParameterSettings trace,CancellationToken t)
+    {
+            ApiResponse<PostInventoryResult>? posting=null;
             var postLines=new List<PostInventoryLine>();
             var affectedOrderIds=new HashSet<long>();
             foreach(var line in receipt.Lines)
@@ -167,8 +176,28 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
             posting=await inventory.PostAsync(new($"GOODS-RECEIPT:{receipt.Id}","GoodsReceipt",receipt.Id,receipt.ReceiptNumber,receipt.ReceiptDate.ToDateTime(TimeOnly.MinValue),InventoryMovementType.PurchaseReceipt,InventoryMovementDirection.Receipt,settings.InventoryCurrencyCode,postLines),t);
             if(!posting.Success)throw new InvalidOperationException(posting.Message);receipt.InventoryPostingId=posting.Data!.PostingId;receipt.Status=settings.RequireQualityInspection?GoodsReceiptStatus.QualityInspection:GoodsReceiptStatus.Posted;receipt.PostedAt=DateTime.UtcNow;
             foreach(var orderId in affectedOrderIds){var order=await u.Repository<PurchaseOrder>().Query(true).Include(x=>x.Lines).FirstAsync(x=>x.Id==orderId,t);order.Status=order.Lines.All(x=>x.Status==PurchaseLineStatus.Received)?PurchaseOrderStatus.Received:PurchaseOrderStatus.PartiallyReceived;}
+            await SyncImportDossierAsync(receipt,t);
             await u.SaveChangesAsync(t);
-        },ct);
-        return ApiResponse<object>.Ok(new{receipt.Id,receipt.InventoryPostingId,receipt.Status,LabelsReady=settings.AutoCreateLabels&&trace.AutoCreateLabelsAfterReceipt,LabelCopies=trace.DefaultLabelCopies});
+    }
+
+    private async Task SyncImportDossierAsync(GoodsReceipt receipt,CancellationToken ct)
+    {
+        if(!receipt.TradeDossierId.HasValue)return;
+        var trade=await u.Repository<TradeDossier>().GetByIdAsync(receipt.TradeDossierId.Value,ct)??throw new InvalidOperationException("Linked import trade dossier could not be found.");
+        var dossier=await u.Repository<ImportDossier>().Query(true).Include(x=>x.Lines).FirstOrDefaultAsync(x=>x.TradeDossierId==trade.Id,ct);
+        if(dossier is null)
+        {
+            dossier=new ImportDossier{TradeDossierId=trade.Id,DossierNumber=trade.DossierNumber,Status=ImportDossierStatus.ReceivedProvisionally,BranchId=trade.BranchId,SupplierId=trade.BusinessPartnerId,CurrencyId=trade.CurrencyId,CurrencyCode=trade.CurrencyCode,IncotermCode=trade.IncotermCode,OpenDate=trade.OpenDate,EstimatedArrivalDate=trade.EstimatedArrivalDate,ActualArrivalDate=receipt.ReceiptDate,TransactionExchangeRate=1,CustomsExchangeRate=1,CostingExchangeRate=1,Notes="Mal kabul sırasında otomatik eşlendi."};
+            await u.Repository<ImportDossier>().AddAsync(dossier,ct);await u.SaveChangesAsync(ct);
+        }
+        else if(!dossier.ActualArrivalDate.HasValue||receipt.ReceiptDate<dossier.ActualArrivalDate.Value)dossier.ActualArrivalDate=receipt.ReceiptDate;
+        var transactionByLine=await u.Repository<InventoryTransaction>().Query().Where(x=>x.DocumentType=="GoodsReceipt"&&x.DocumentId==receipt.Id&&x.DocumentLineId.HasValue).GroupBy(x=>x.DocumentLineId!.Value).ToDictionaryAsync(x=>x.Key,x=>(long?)x.Min(v=>v.Id),ct);
+        var nextLine=dossier.Lines.Count==0?0:dossier.Lines.Max(x=>x.LineNumber);
+        foreach(var line in receipt.Lines.Where(x=>!dossier.Lines.Any(y=>y.GoodsReceiptLineId==x.Id)))
+        {
+            var product=await u.Repository<verii_metivon_api.Modules.Products.Domain.Entities.Product>().GetByIdAsync(line.ProductId,ct)??throw new InvalidOperationException("Product not found while matching the import dossier.");
+            var quantity=line.AcceptedQuantity;var amount=quantity*line.UnitCost;
+            dossier.Lines.Add(new ImportDossierLine{LineNumber=++nextLine,PurchaseOrderLineId=line.PurchaseOrderLineId,GoodsReceiptLineId=line.Id,ProductId=line.ProductId,Quantity=quantity,NetWeight=(product.NetWeight??0)*quantity,GrossWeight=(product.GrossWeight??product.NetWeight??0)*quantity,Volume=(product.Volume??0)*quantity,ForeignUnitPrice=line.UnitCost,ForeignGoodsAmount=amount,TransactionExchangeRate=dossier.TransactionExchangeRate,CustomsExchangeRate=dossier.CustomsExchangeRate,CostingExchangeRate=dossier.CostingExchangeRate,GoodsAmountLocal=amount*dossier.CostingExchangeRate,FinalUnitCostLocal=line.UnitCost,ReceiptTransactionId=transactionByLine.GetValueOrDefault(line.Id)});
+        }
     }
 }

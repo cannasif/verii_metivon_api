@@ -174,7 +174,7 @@ public sealed class GoodsReceiptService(IUnitOfWork u,IInventoryService inventor
                 }
             }
             posting=await inventory.PostAsync(new($"GOODS-RECEIPT:{receipt.Id}","GoodsReceipt",receipt.Id,receipt.ReceiptNumber,receipt.ReceiptDate.ToDateTime(TimeOnly.MinValue),InventoryMovementType.PurchaseReceipt,InventoryMovementDirection.Receipt,settings.InventoryCurrencyCode,postLines),t);
-            if(!posting.Success)throw new InvalidOperationException(posting.Message);receipt.InventoryPostingId=posting.Data!.PostingId;receipt.Status=settings.RequireQualityInspection?GoodsReceiptStatus.QualityInspection:GoodsReceiptStatus.Posted;receipt.PostedAt=DateTime.UtcNow;
+            if(!posting.Success)throw new InvalidOperationException(posting.Message);if(posting.Data!.AlreadyPosted){receipt.InventoryPostingId=posting.Data.PostingId;return;}receipt.InventoryPostingId=posting.Data.PostingId;receipt.Status=settings.RequireQualityInspection?GoodsReceiptStatus.QualityInspection:GoodsReceiptStatus.Posted;receipt.PostedAt=DateTime.UtcNow;
             foreach(var orderId in affectedOrderIds){var order=await u.Repository<PurchaseOrder>().Query(true).Include(x=>x.Lines).FirstAsync(x=>x.Id==orderId,t);order.Status=order.Lines.All(x=>x.Status==PurchaseLineStatus.Received)?PurchaseOrderStatus.Received:PurchaseOrderStatus.PartiallyReceived;}
             await SyncImportDossierAsync(receipt,t);
             await u.SaveChangesAsync(t);

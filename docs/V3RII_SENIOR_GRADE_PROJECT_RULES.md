@@ -101,7 +101,11 @@ AutoMapper standardın bir aracıdır; her eşleme otomatik yapılmaz.
 - Generic repository basit aggregate CRUD içindir; karmaşık sorgu query service veya modül repository'sine taşınır.
 - `IQueryable` API/controller'a sızmaz. `SaveChanges` döngü içinde çağrılmaz.
 - Optimistic concurrency gereken kayıtta `rowversion`/concurrency token bulunur.
-- Soft-delete aggregate hard-delete edilmez. Migration niyetli isim taşır ve SQL etkisi incelenir.
+- Silme işlemi tüm `Entity` kayıtlarında istisnasız soft-delete'tir: `IsDeleted = true`, `DeletedAt` ve mümkünse `DeletedBy` yazılır; fiziksel `DELETE` üretilmez.
+- Normal tüm EF sorguları merkezi global query filter ile yalnızca `IsDeleted = false` kayıtları döndürür. `IgnoreQueryFilters` yalnız açıkça belgelenmiş yönetim, geri yükleme veya seed senaryosunda kullanılabilir.
+- Soft-delete edilen kayıt benzersiz iş anahtarını bloke etmez; unique indeksler `[IsDeleted] = 0` koşuluyla filtrelenir.
+- HTTP `DELETE` veya IIS uyumlu `/delete` endpoint'i yalnız taşıma sözleşmesidir; veritabanı semantiğini hard-delete'e çeviremez.
+- Migration niyetli isim taşır ve SQL etkisi incelenir.
 - Production başlangıcında kontrolsüz otomatik migration SHOULD NOT çalışır.
 
 ### 2.6 Transaction, idempotency ve güvenilir mesajlaşma

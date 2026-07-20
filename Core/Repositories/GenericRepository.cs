@@ -65,8 +65,12 @@ public sealed class GenericRepository<T>(MetivonDbContext context, IHttpContextA
         _dbSet.UpdateRange(entities);
     }
 
-    public void Remove(T entity) => _dbSet.Remove(entity);
-    public void RemoveRange(IEnumerable<T> entities) => _dbSet.RemoveRange(entities);
+    public void Remove(T entity) => MarkDeleted(entity);
+
+    public void RemoveRange(IEnumerable<T> entities)
+    {
+        foreach (var entity in entities) MarkDeleted(entity);
+    }
 
     public async Task<bool> SoftDeleteAsync(long id, CancellationToken cancellationToken = default)
     {
@@ -76,6 +80,20 @@ public sealed class GenericRepository<T>(MetivonDbContext context, IHttpContextA
         entity.DeletedAt = DateTime.UtcNow;
         entity.DeletedBy = CurrentUserId;
         return true;
+    }
+
+    private void MarkDeleted(T entity)
+    {
+        entity.IsDeleted = true;
+        entity.DeletedAt = DateTime.UtcNow;
+        entity.DeletedBy = CurrentUserId;
+        entity.UpdatedAt = entity.DeletedAt;
+        entity.UpdatedBy = entity.DeletedBy;
+
+        if (context.Entry(entity).State == EntityState.Detached)
+            _dbSet.Attach(entity);
+
+        context.Entry(entity).State = EntityState.Modified;
     }
 
     public Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default) =>

@@ -1,3 +1,5 @@
+using System.Linq.Expressions;
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using verii_metivon_api.Core.Domain;
 using verii_metivon_api.Modules.Products.Domain.Entities;
@@ -20,8 +22,13 @@ using verii_metivon_api.Modules.AccessControl.Domain.Entities;
 
 namespace verii_metivon_api.Core.Persistence;
 
-public sealed class MetivonDbContext(DbContextOptions<MetivonDbContext> options) : DbContext(options)
+public sealed class MetivonDbContext(
+    DbContextOptions<MetivonDbContext> options,
+    IHttpContextAccessor? httpContextAccessor = null) : DbContext(options)
 {
+    private long? CurrentUserId => long.TryParse(
+        httpContextAccessor?.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+
     public DbSet<User> Users => Set<User>();
     public DbSet<UserDetail> UserDetails => Set<UserDetail>();
     public DbSet<Branch> Branches => Set<Branch>();
@@ -169,6 +176,91 @@ public sealed class MetivonDbContext(DbContextOptions<MetivonDbContext> options)
             entity.HasOne(x => x.TaxGroup).WithMany().HasForeignKey(x => x.TaxGroupId).OnDelete(DeleteBehavior.Restrict);
             entity.HasQueryFilter(x => !x.IsDeleted);
         });
+
+        ApplySoftDeleteConventions(modelBuilder);
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        ApplyAuditAndSoftDeleteRules();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        ApplyAuditAndSoftDeleteRules();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void ApplyAuditAndSoftDeleteRules()
+    {
+        ChangeTracker.DetectChanges();
+        var now = DateTime.UtcNow;
+        var userId = CurrentUserId;
+
+        foreach (var entry in ChangeTracker.Entries<Entity>())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    entry.Entity.CreatedAt = now;
+                    entry.Entity.CreatedBy ??= userId;
+                    entry.Entity.IsDeleted = false;
+                    entry.Entity.DeletedAt = null;
+                    entry.Entity.DeletedBy = null;
+                    break;
+
+                case EntityState.Modified:
+                    entry.Entity.UpdatedAt = now;
+                    entry.Entity.UpdatedBy = userId ?? entry.Entity.UpdatedBy;
+                    if (entry.Entity.IsDeleted)
+                    {
+                        entry.Entity.DeletedAt ??= now;
+                        entry.Entity.DeletedBy ??= userId;
+                    }
+                    break;
+
+                case EntityState.Deleted:
+                    // A delete request is a domain-level soft delete. No mapped Entity
+                    // may be physically removed through EF Core.
+                    entry.State = EntityState.Modified;
+                    entry.Entity.IsDeleted = true;
+                    entry.Entity.DeletedAt = now;
+                    entry.Entity.DeletedBy = userId;
+                    entry.Entity.UpdatedAt = now;
+                    entry.Entity.UpdatedBy = userId;
+                    break;
+            }
+        }
+    }
+
+    private static void ApplySoftDeleteConventions(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes()
+                     .Where(x => typeof(Entity).IsAssignableFrom(x.ClrType)))
+        {
+            if (entityType.GetQueryFilter() is null)
+            {
+                var parameter = Expression.Parameter(entityType.ClrType, "entity");
+                var isDeleted = Expression.Property(parameter, nameof(Entity.IsDeleted));
+                var filter = Expression.Lambda(Expression.Not(isDeleted), parameter);
+                entityType.SetQueryFilter(filter);
+            }
+
+            // Soft-deleted business keys must not block a replacement record.
+            foreach (var index in entityType.GetIndexes().Where(x => x.IsUnique))
+            {
+                var existingFilter = index.GetFilter();
+                if (existingFilter?.Contains(nameof(Entity.IsDeleted), StringComparison.OrdinalIgnoreCase) == true)
+                    continue;
+
+                index.SetFilter(string.IsNullOrWhiteSpace(existingFilter)
+                    ? "[IsDeleted] = 0"
+                    : $"({existingFilter}) AND [IsDeleted] = 0");
+            }
+        }
     }
 
     private static void ConfigureDefinition<T>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<T> entity, string tableName)

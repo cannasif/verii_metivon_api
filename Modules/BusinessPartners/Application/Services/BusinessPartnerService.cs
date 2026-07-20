@@ -231,16 +231,10 @@ public sealed class BusinessPartnerService(IUnitOfWork unitOfWork, IParameterSer
             var entity = await repository.GetByIdForUpdateAsync(id, ct);
             if (entity is null) return ApiResponse<object>.Error("Definition not found.", 404);
             if (entity.IsDefault) return ApiResponse<object>.Error("Default definition cannot be deleted.", 409);
-            try
-            {
-                repository.Remove(entity);
-                await unitOfWork.SaveChangesAsync(ct);
-                return ApiResponse<object>.Ok(new { entity.Id }, "Definition deleted.");
-            }
-            catch (DbUpdateException)
-            {
-                return ApiResponse<object>.Error("This definition is in use and cannot be deleted. Replace its references first.", 409);
-            }
+            if (!await repository.SoftDeleteAsync(entity.Id, ct))
+                return ApiResponse<object>.Error("Definition not found.", 404);
+            await unitOfWork.SaveChangesAsync(ct);
+            return ApiResponse<object>.Ok(new { entity.Id, IsDeleted = true }, "Definition deleted.");
         }
 
     private static async Task<(IReadOnlyList<ManagedDefinitionItem> Rows, int TotalCount)> ReadManaged<T>(IGenericRepository<T> repository, DefinitionListQuery request, CancellationToken ct) where T : DefinitionEntity

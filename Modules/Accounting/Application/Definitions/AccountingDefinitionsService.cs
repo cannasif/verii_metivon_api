@@ -67,7 +67,7 @@ public sealed class AccountingDefinitionService(IUnitOfWork unitOfWork) : IAccou
         if (request.IsGeneralLedgerClosed && !request.IsInventoryClosed) return ApiResponse<object>.Error("Inventory must be closed before the general ledger can be closed.", 400);
         var periods = unitOfWork.Repository<FiscalPeriod>();
         if (await periods.ExistsAsync(x => !x.IsDeleted && x.Code == code && x.Id != id, ct)) return ApiResponse<object>.Error("Fiscal period code already exists.", 409);
-        if (await periods.ExistsAsync(x => !x.IsDeleted && x.Id != id && x.StartDate <= request.EndDate && x.EndDate >= request.StartDate, ct)) return ApiResponse<object>.Error("Fiscal period overlaps an existing period.", 409);
+        if (await periods.ExistsAsync(x => !x.IsDeleted && x.Id != id && x.StartDate <= request.EndDate && x.EndDate >= request.StartDate, ct)) return ApiResponse<object>.Error("Fiscal period overlaps an existing period.", 409, "FISCAL_PERIOD_OVERLAP");
         FiscalPeriod entity;
         if (id.HasValue)
         {
